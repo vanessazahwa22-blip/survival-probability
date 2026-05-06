@@ -1,0 +1,1533 @@
+<!doctype html>
+<html lang="id" class="h-full">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Survival Probability Lab — Backrooms</title>
+
+<!-- ✅ FIX 1: FAVICON INLINE — tidak perlu file favicon.ico -->
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔦</text></svg>">
+
+<link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=IBM+Plex+Mono:wght@300;400;500;700&family=Cinzel:wght@400;700;900&display=swap" rel="stylesheet">
+
+<!--
+  ✅ FIX 2: VERSI A-FRAME + AR.JS YANG KOMPATIBEL
+  - A-Frame 1.4.0 (stabil, kompatibel dengan AR.js)
+  - AR.js dari jsDelivr CDN (lebih stabil dari raw.githack)
+  - URUTAN WAJIB: A-Frame DULU, baru AR.js
+  - Ini menghilangkan error: changeMatrixMode undefined
+-->
+  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.js"></script>
+
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:#0a0804}
+
+:root{
+  --bg:#0a0804;
+  --surface:#16130c;
+  --wall:#c8b450;
+  --wall-dark:#8b7235;
+  --text:#e8ce8a;
+  --text-dim:rgba(232,206,138,0.5);
+  --red:#c0392b;
+  --amber:#e67e22;
+  --green:#27ae60;
+  --mono:'IBM Plex Mono',monospace;
+  --serif:'Special Elite',cursive;
+  --heading:'Cinzel',serif;
+}
+
+body{font-family:var(--mono);color:var(--text);background:var(--bg)}
+
+#ar-scene-wrapper {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  background: #000;
+}
+#ar-scene-wrapper.ar-active {
+  opacity: 1;
+  pointer-events: all;
+  z-index: 100;
+}
+#ar-scene-wrapper a-scene,
+#ar-scene-wrapper canvas,
+#ar-scene-wrapper video {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+}
+#ar-loading-msg {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  z-index: 5;
+  font-family: var(--mono);
+  color: var(--wall);
+  font-size: .85rem;
+  letter-spacing: .2em;
+  gap: 16px;
+}
+#ar-loading-msg .ar-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(200,180,80,.2);
+  border-top-color: var(--wall);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+#ar-loading-msg.hidden { display: none; }
+
+#ar-hud-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+#ar-hud-overlay.ar-active { opacity: 1; }
+.ar-hud-corner {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border-color: rgba(200,180,80,.7);
+  border-style: solid;
+}
+.ar-hud-tl { top: 12px; left: 12px; border-width: 2px 0 0 2px; }
+.ar-hud-tr { top: 12px; right: 12px; border-width: 2px 2px 0 0; }
+.ar-hud-bl { bottom: 12px; left: 12px; border-width: 0 0 2px 2px; }
+.ar-hud-br { bottom: 12px; right: 12px; border-width: 0 2px 2px 0; }
+.ar-hud-label {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-size: .55rem;
+  color: rgba(200,180,80,.9);
+  letter-spacing: .25em;
+  text-transform: uppercase;
+  background: rgba(10,8,4,.75);
+  padding: 4px 14px;
+  border-radius: 2px;
+  white-space: nowrap;
+  border: 1px solid rgba(200,180,80,.2);
+}
+.ar-hud-status {
+  position: absolute;
+  bottom: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-size: .65rem;
+  color: rgba(200,180,80,.9);
+  background: rgba(10,8,4,.85);
+  padding: 8px 18px;
+  border-radius: 2px;
+  white-space: nowrap;
+  letter-spacing: .1em;
+  border: 1px solid rgba(200,180,80,.2);
+  text-align: center;
+  max-width: 90vw;
+}
+#ar-legend {
+  position: absolute;
+  bottom: 110px;
+  right: 16px;
+  background: rgba(10,8,4,.9);
+  border: 1px solid rgba(200,180,80,.2);
+  border-radius: 4px;
+  padding: 10px 14px;
+  font-family: var(--mono);
+  font-size: .6rem;
+  color: var(--text-dim);
+  line-height: 2;
+  pointer-events: none;
+}
+#ar-legend .leg-title {
+  color: var(--wall);
+  font-size: .55rem;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  border-bottom: 1px solid rgba(200,180,80,.15);
+  padding-bottom: 4px;
+}
+#ar-legend .leg-row { display: flex; align-items: center; gap: 8px; }
+#ar-legend .leg-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+.stop-ar-btn{
+  font-family:var(--mono);font-size:.75rem;
+  pointer-events:auto !important;
+  background:rgba(192,57,43,.9);border:1px solid rgba(192,57,43,1);
+  color:#fff;padding:12px 24px;cursor:pointer;letter-spacing:.12em;
+  transition:all .2s;border-radius:3px;
+  box-shadow: 0 2px 12px rgba(192,57,43,.5);
+  text-transform: uppercase;
+}
+.stop-ar-btn:hover{background:rgba(220,60,43,1); transform: scale(1.03);}
+
+/* ═══════════════════════════════ ENTRANCE SCREEN ═══════════════════════════════ */
+#entrance{
+  position:fixed;inset:0;z-index:1000;
+  background:linear-gradient(180deg,#1a1508 0%,#0a0804 100%);
+  display:flex;align-items:center;justify-content:center;
+}
+#entrance.fade-out{animation:fadeToBlack 1.5s ease-in forwards}
+@keyframes fadeToBlack{to{opacity:0;pointer-events:none}}
+
+.corridor-scene{
+  position:absolute;inset:0;
+  display:flex;align-items:center;justify-content:center;
+  perspective:800px;
+}
+.corridor-container{
+  position:relative;width:320px;height:420px;
+  transform-style:preserve-3d;
+}
+.door-frame{
+  position:absolute;inset:0;
+  border:12px solid #3a3225;
+  border-radius:4px 4px 0 0;z-index:5;
+  box-shadow:-8px 0 30px rgba(0,0,0,.7),8px 0 30px rgba(0,0,0,.7),0 -5px 20px rgba(0,0,0,.5),inset 0 0 20px rgba(0,0,0,.3);
+}
+.door-frame::before{
+  content:'';position:absolute;inset:-20px;
+  border:6px solid #2a2218;border-radius:6px 6px 0 0;z-index:-1;
+}
+.corridor-interior{
+  position:absolute;inset:12px;overflow:hidden;
+  border-radius:2px 2px 0 0;
+  animation:doorGlow 5s ease-in-out infinite;
+}
+@keyframes doorGlow{
+  0%,100%{box-shadow:0 0 60px 15px rgba(200,180,80,.3),inset 0 0 40px rgba(200,180,80,.1)}
+  50%{box-shadow:0 0 80px 25px rgba(200,180,80,.4),inset 0 0 60px rgba(200,180,80,.15)}
+}
+.corridor-bg{position:absolute;inset:0;background:linear-gradient(180deg,#c9a85e 0%,#a68b47 30%,#8b7235 60%,#6b5a28 100%)}
+.ceiling{position:absolute;top:0;left:0;right:0;height:25%;background:linear-gradient(180deg,#c4a05a 0%,#d4b874 40%,#e8ce8a 100%);clip-path:polygon(0 0,100% 0,85% 100%,15% 100%);}
+.ceiling-tile{position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent,transparent 48px,rgba(0,0,0,.08) 48px,rgba(0,0,0,.08) 50px),repeating-linear-gradient(180deg,transparent,transparent 48px,rgba(0,0,0,.06) 48px,rgba(0,0,0,.06) 50px);}
+.neon-light{position:absolute;width:60%;height:6px;background:rgba(255,250,200,.9);left:20%;border-radius:2px;box-shadow:0 0 20px 8px rgba(100,200,255,.4),0 0 60px 15px rgba(100,200,255,.15);animation:flicker 3s ease-in-out infinite;}
+.neon-light-1{top:8%;animation-delay:0s}.neon-light-2{top:16%;width:40%;left:30%;animation-delay:1.2s;opacity:.6}
+@keyframes flicker{0%,100%{opacity:.85}5%{opacity:.4}10%{opacity:.8}15%{opacity:.2}16%{opacity:.9}55%{opacity:.85}56%{opacity:.5}57%{opacity:.85}}
+.wall-left{position:absolute;top:25%;left:0;width:15%;height:55%;background:linear-gradient(90deg,#d4b874 0%,#e8ce8a 100%);clip-path:polygon(0 0,100% 15%,100% 85%,0 100%);}
+.wall-right{position:absolute;top:25%;right:0;width:15%;height:55%;background:linear-gradient(270deg,#d4b874 0%,#e8ce8a 100%);clip-path:polygon(0 15%,100% 0,100% 100%,0 85%);}
+.back-wall{position:absolute;top:25%;left:15%;right:15%;height:55%;background:linear-gradient(180deg,#c9a85e 0%,#a68b47 50%,#8b7235 100%)}
+.depth-corridor{position:absolute;border:2px solid rgba(0,0,0,.15);background:linear-gradient(180deg,rgba(201,168,94,.6) 0%,rgba(177,144,72,.8) 100%)}
+.depth-1{top:30%;left:20%;right:20%;height:45%}.depth-2{top:34%;left:25%;right:25%;height:38%;background:linear-gradient(180deg,rgba(177,144,72,.7) 0%,rgba(153,120,60,.9) 100%)}.depth-3{top:37%;left:30%;right:30%;height:32%;background:linear-gradient(180deg,rgba(153,120,60,.8) 0%,rgba(129,96,48,.95) 100%)}.depth-4{top:39%;left:34%;right:34%;height:27%;background:rgba(105,84,42,.9)}.depth-5{top:41%;left:37%;right:37%;height:23%;background:rgba(81,64,32,.95)}
+.depth-light{position:absolute;width:40%;height:2px;background:rgba(255,250,180,.5);left:30%;top:10%;border-radius:1px;box-shadow:0 0 8px 3px rgba(255,250,180,.2);animation:flicker 3s ease-in-out infinite;}
+.floor-area{position:absolute;bottom:0;left:0;right:0;height:20%;background:linear-gradient(0deg,#6b5a28 0%,#8b7235 50%,#a68b47 100%);clip-path:polygon(15% 0,85% 0,100% 100%,0 100%);}
+.carpet-pattern{position:absolute;inset:0;background:repeating-linear-gradient(45deg,transparent,transparent 8px,rgba(100,80,30,.3) 8px,rgba(100,80,30,.3) 10px),repeating-linear-gradient(-45deg,transparent,transparent 8px,rgba(80,65,25,.2) 8px,rgba(80,65,25,.2) 10px);}
+.light-spill{position:absolute;bottom:-80px;left:10%;right:10%;height:80px;background:radial-gradient(ellipse at center top,rgba(200,180,80,.15) 0%,transparent 80%);z-index:4;animation:breathe 6s ease-in-out infinite;}
+@keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.02)}}
+.door-shadow-left{position:absolute;left:-60px;top:10%;width:60px;height:80%;background:linear-gradient(90deg,transparent,rgba(0,0,0,.6));z-index:6}
+.door-shadow-right{position:absolute;right:-60px;top:10%;width:60px;height:80%;background:linear-gradient(270deg,transparent,rgba(0,0,0,.6));z-index:6}
+.grain-overlay{position:fixed;inset:-50%;width:200%;height:200%;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.4'/%3E%3C/svg%3E");opacity:.07;pointer-events:none;z-index:9999;animation:grainMove .5s steps(5) infinite;mix-blend-mode:overlay;}
+@keyframes grainMove{0%{transform:translate(0,0)}10%{transform:translate(-2%,-3%)}20%{transform:translate(3%,1%)}30%{transform:translate(-1%,2%)}40%{transform:translate(2%,-2%)}50%{transform:translate(-3%,3%)}60%{transform:translate(1%,-1%)}70%{transform:translate(-2%,2%)}80%{transform:translate(3%,-3%)}90%{transform:translate(-1%,1%)}100%{transform:translate(0,0)}}
+.vignette{position:fixed;inset:0;background:radial-gradient(ellipse at center,transparent 35%,rgba(0,0,0,.75) 100%);pointer-events:none;z-index:998;}
+.scanline{position:fixed;left:0;width:100%;height:3px;background:rgba(200,180,80,.05);pointer-events:none;z-index:9998;animation:scanMove 7s linear infinite;}
+@keyframes scanMove{0%{top:-5%}100%{top:105%}}
+
+.entrance-ui{position:absolute;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:8% 5%;pointer-events:none;}
+.entrance-top{display:flex;flex-direction:column;align-items:center;gap:10px;animation:textReveal 2s ease-out .5s both;}
+.entrance-sub-top{
+  font-family:var(--mono);font-size:.68rem;color:#fff;letter-spacing:.25em;text-transform:uppercase;
+  background:rgba(10,8,4,.82);border:1px solid rgba(200,180,80,.5);padding:6px 18px;border-radius:2px;
+  text-shadow:0 1px 4px rgba(0,0,0,1);box-shadow:0 0 20px rgba(200,180,80,.15);
+}
+.entrance-title{
+  font-family:var(--serif);font-size:clamp(2rem,6vw,3.2rem);color:#fff;letter-spacing:.15em;line-height:1.1;text-align:center;
+  text-shadow:0 0 30px rgba(200,180,80,.8),0 2px 8px rgba(0,0,0,1),0 0 2px rgba(0,0,0,1);
+}
+.entrance-bottom{display:flex;flex-direction:column;align-items:center;gap:16px;animation:textReveal 2s ease-out 1.2s both;pointer-events:auto;}
+.enter-btn{font-family:var(--mono);color:#fff;background:rgba(139,114,53,.5);backdrop-filter:blur(12px);border:1px solid rgba(200,180,80,.5);padding:14px 48px;letter-spacing:.25em;text-transform:uppercase;cursor:pointer;transition:all .4s;font-size:.875rem;position:relative;overflow:hidden;text-shadow:0 1px 3px rgba(0,0,0,.8);}
+.enter-btn::before{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(200,180,80,.1),transparent);transform:translateX(-100%);transition:transform .6s;}
+.enter-btn:hover{background:rgba(169,140,70,.65);border-color:rgba(200,180,80,.8);transform:scale(1.03)}
+.enter-btn:hover::before{transform:translateX(100%)}
+.warning-txt{
+  font-family:var(--mono);font-size:.7rem;color:#fff;text-align:center;
+  animation:warningPulse 4s ease-in-out infinite;max-width:380px;line-height:1.75;
+  background:rgba(10,8,4,.75);border:1px solid rgba(200,180,80,.2);padding:10px 18px;border-radius:3px;
+  text-shadow:0 1px 3px rgba(0,0,0,.9);
+}
+@keyframes warningPulse{0%,100%{opacity:.75}50%{opacity:1}}
+@keyframes textReveal{from{opacity:0;transform:translateY(15px);filter:blur(4px)}to{opacity:1;transform:translateY(0);filter:blur(0)}}
+.fog-layer{position:absolute;bottom:0;left:-20%;width:140%;height:40%;background:radial-gradient(ellipse at center bottom,rgba(180,160,80,.2) 0%,transparent 70%);pointer-events:none;z-index:10;animation:fogDrift 12s ease-in-out infinite;}
+.fog-layer-2{position:absolute;bottom:10%;left:-10%;width:120%;height:30%;background:radial-gradient(ellipse at center,rgba(160,140,60,.15) 0%,transparent 60%);pointer-events:none;z-index:10;animation:fogDrift2 16s ease-in-out infinite;}
+@keyframes fogDrift{0%{transform:translateX(-10%) scaleX(1.3);opacity:.15}50%{transform:translateX(5%) scaleX(1.5);opacity:.25}100%{transform:translateX(-10%) scaleX(1.3);opacity:.15}}
+@keyframes fogDrift2{0%{transform:translateX(10%) scaleX(1.4);opacity:.1}50%{transform:translateX(-8%) scaleX(1.2);opacity:.2}100%{transform:translateX(10%) scaleX(1.4);opacity:.1}}
+
+/* ═══════════════════════════════ MAIN APP ═══════════════════════════════ */
+#app{position:fixed;inset:0;display:none;background:var(--bg);overflow:hidden;}
+#app.visible{display:block}
+
+#room-transition{position:fixed;inset:0;z-index:500;pointer-events:none;perspective:1000px;display:none;}
+#room-transition.active{display:block;pointer-events:all}
+.room-portal{position:absolute;inset:0;background:var(--bg);transform-origin:center center;animation:roomEnter .8s cubic-bezier(.4,0,.2,1) forwards;}
+@keyframes roomEnter{0%{transform:translateZ(0) scale(1);opacity:1}50%{transform:translateZ(-400px) scale(.4);opacity:.3}100%{transform:translateZ(-800px) scale(0);opacity:0}}
+.room-flash{position:absolute;inset:0;background:rgba(200,180,80,.08);animation:flashIn .3s ease-out forwards;}
+@keyframes flashIn{0%{opacity:1}100%{opacity:0}}
+
+#sidebar{position:fixed;top:0;left:0;height:100%;width:260px;background:rgba(10,8,4,.97);backdrop-filter:blur(10px);border-right:1px solid rgba(200,180,80,.1);z-index:200;display:flex;flex-direction:column;padding:24px 16px;transition:transform .3s ease;}
+#sidebar.hidden{transform:translateX(-100%)}
+.sidebar-logo{text-align:center;margin-bottom:28px}
+.sidebar-logo .logo-icon{font-size:2rem;display:block;margin-bottom:6px;animation:breathe 4s ease-in-out infinite}
+.sidebar-logo h1{font-family:var(--serif);font-size:1rem;color:var(--wall);letter-spacing:.1em;text-shadow:0 0 10px rgba(200,180,80,.4);}
+.sidebar-logo p{font-size:.6rem;color:var(--text-dim);margin-top:4px;letter-spacing:.2em;text-transform:uppercase}
+.nav-links{display:flex;flex-direction:column;gap:4px;flex:1}
+.nav-btn{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:4px;font-family:var(--mono);font-size:.75rem;color:var(--text);background:transparent;border:none;cursor:pointer;text-align:left;letter-spacing:.05em;transition:all .2s;position:relative;overflow:hidden;}
+.nav-btn::before{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(200,180,80,.06),transparent);transform:translateX(-100%);transition:transform .5s;}
+.nav-btn:hover{background:rgba(200,180,80,.08);color:var(--wall)}
+.nav-btn:hover::before{transform:translateX(100%)}
+.nav-btn.active{background:rgba(192,57,43,.2);color:var(--wall);border-left:2px solid var(--red)}
+.nav-btn .nav-icon{width:16px;height:16px;opacity:.7;flex-shrink:0}
+.sidebar-footer{font-size:.55rem;color:rgba(200,180,80,.2);text-align:center;letter-spacing:.2em}
+
+#menu-toggle{position:fixed;top:16px;left:16px;z-index:300;background:rgba(192,57,43,.8);border:none;cursor:pointer;padding:8px;border-radius:3px;display:none;}
+@media(max-width:768px){
+  #menu-toggle{display:block}
+  #sidebar{transform:translateX(-100%)}
+  #sidebar.open{transform:translateX(0)}
+  #main{margin-left:0!important}
+}
+
+#main{margin-left:260px;height:100%;overflow-y:auto;background:linear-gradient(135deg,var(--bg) 0%,#0f0d06 50%,var(--bg) 100%);position:relative;transition: opacity 0.3s ease;}
+#main.ar-hidden { opacity: 0; pointer-events: none; }
+#main::-webkit-scrollbar{width:4px}
+#main::-webkit-scrollbar-track{background:var(--bg)}
+#main::-webkit-scrollbar-thumb{background:rgba(200,180,80,.3);border-radius:2px}
+
+.page{display:none;padding:32px;min-height:100%;animation:pageIn .4s ease forwards}
+.page.active{display:block}
+@keyframes pageIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+.home-header{text-align:center;margin-bottom:40px}
+.home-header .big-emoji{font-size:3rem;display:block;margin-bottom:12px;animation:breathe 3s ease-in-out infinite}
+.home-header h2{font-family:var(--serif);font-size:clamp(1.5rem,4vw,2.5rem);color:var(--wall);letter-spacing:.1em;text-shadow:0 0 20px rgba(200,180,80,.4);margin-bottom:8px;}
+.home-header p{font-size:.75rem;color:var(--text-dim);max-width:500px;margin:0 auto;line-height:1.7;letter-spacing:.03em}
+.menu-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;max-width:900px;margin:0 auto}
+.room-card{position:relative;overflow:hidden;border:1px solid rgba(200,180,80,.12);border-radius:4px;cursor:pointer;transition:all .3s;height:200px;background:var(--surface);}
+.room-card:hover{border-color:rgba(200,180,80,.35);transform:translateY(-3px)}
+.room-card:hover .card-corridor{transform:scale(1.05)}
+.room-card:hover .card-overlay{background:rgba(10,8,4,.4)}
+.card-corridor{position:absolute;inset:0;transition:transform .4s ease;background:linear-gradient(180deg,#c9a85e 0%,#8b7235 60%,#5a4820 100%);}
+.card-corridor-inner{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;}
+.mini-corridor{position:relative;width:120px;height:160px;perspective:300px;}
+.mc-frame{position:absolute;inset:0;border:6px solid rgba(58,50,37,.8);border-radius:3px 3px 0 0;box-shadow:inset 0 0 30px rgba(200,180,80,.2),0 0 40px rgba(200,180,80,.15);}
+.mc-ceiling{position:absolute;top:0;left:0;right:0;height:30%;background:linear-gradient(180deg,#c4a05a,#e8ce8a);clip-path:polygon(0 0,100% 0,80% 100%,20% 100%);}
+.mc-floor{position:absolute;bottom:0;left:0;right:0;height:20%;background:linear-gradient(0deg,#5a4820,#8b7235);clip-path:polygon(20% 0,80% 0,100% 100%,0 100%);}
+.mc-back{position:absolute;top:30%;left:20%;right:20%;height:50%;background:#6b5a28}
+.mc-depth{position:absolute;background:rgba(0,0,0,.3)}
+.mc-d1{top:35%;left:25%;right:25%;height:40%}.mc-d2{top:38%;left:30%;right:30%;height:32%;background:rgba(0,0,0,.5)}.mc-d3{top:40%;left:34%;right:34%;height:26%;background:rgba(0,0,0,.65)}
+.mc-light{position:absolute;width:50%;height:3px;left:25%;top:5%;background:rgba(255,250,180,.8);border-radius:1px;box-shadow:0 0 8px 3px rgba(255,250,180,.3);animation:flicker 3s ease-in-out infinite;}
+.card-overlay{position:absolute;inset:0;background:rgba(10,8,4,.6);transition:background .3s;display:flex;flex-direction:column;justify-content:flex-end;padding:16px;}
+.card-room-num{font-family:var(--mono);font-size:.55rem;color:rgba(200,180,80,.5);letter-spacing:.3em;text-transform:uppercase;margin-bottom:6px;}
+.card-title{font-family:var(--serif);font-size:1.1rem;color:var(--text);letter-spacing:.05em;margin-bottom:4px;}
+.card-desc{font-size:.65rem;color:var(--text-dim);line-height:1.5;letter-spacing:.02em}
+.card-enter{position:absolute;top:12px;right:12px;font-family:var(--mono);font-size:.55rem;color:rgba(200,180,80,.4);letter-spacing:.2em;text-transform:uppercase;border:1px solid rgba(200,180,80,.2);padding:4px 8px;transition:all .3s;}
+.room-card:hover .card-enter{color:var(--wall);border-color:rgba(200,180,80,.5)}
+
+.page-header{margin-bottom:28px}
+.page-header h2{font-family:var(--serif);font-size:1.6rem;color:var(--wall);letter-spacing:.08em;text-shadow:0 0 15px rgba(200,180,80,.3);margin-bottom:4px;}
+.page-header p{font-size:.7rem;color:var(--text-dim);letter-spacing:.05em}
+.page-header .room-tag{display:inline-block;font-size:.55rem;background:rgba(192,57,43,.2);border:1px solid rgba(192,57,43,.3);color:rgba(232,206,138,.6);padding:3px 10px;letter-spacing:.2em;text-transform:uppercase;margin-bottom:10px;}
+.materi-card{background:var(--surface);border:1px solid rgba(200,180,80,.1);border-radius:3px;padding:20px;margin-bottom:12px;transition:border-color .2s;}
+.materi-card:hover{border-color:rgba(200,180,80,.25)}
+.materi-card h3{font-family:var(--mono);font-size:.85rem;color:var(--wall);letter-spacing:.05em;margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+.materi-card p{font-size:.75rem;color:rgba(232,206,138,.75);line-height:1.7}
+.materi-card p + p{margin-top:6px}
+.formula-box{margin-top:12px;padding:12px;text-align:center;background:rgba(200,180,80,.06);border:1px solid rgba(200,180,80,.2);border-radius:3px;font-family:var(--mono);font-size:.9rem;color:var(--wall);letter-spacing:.05em;text-shadow:0 0 8px rgba(200,180,80,.3);}
+.formula-sub{font-size:.6rem;color:var(--text-dim);margin-top:6px;text-align:center}
+.formula-row{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+.formula-row .formula-box{flex:1;min-width:140px}
+.example-box{margin-top:10px;padding:10px 14px;background:rgba(39,174,96,.05);border:1px solid rgba(39,174,96,.15);border-radius:3px;font-size:.72rem;color:rgba(200,232,180,.7);line-height:1.6;}
+.example-box strong{color:#7dffb3}
+.tag-pill{display:inline-block;font-size:.55rem;padding:2px 8px;border-radius:10px;border:1px solid;margin-right:4px;margin-bottom:4px;letter-spacing:.1em;text-transform:uppercase;}
+.tag-dasar{border-color:rgba(200,180,80,.3);color:rgba(200,180,80,.7)}
+.tag-lanjut{border-color:rgba(230,126,34,.3);color:rgba(230,126,34,.7)}
+.tag-penting{border-color:rgba(192,57,43,.3);color:rgba(192,57,43,.7)}
+
+.ar-mode-btn{font-family:var(--mono);font-size:.8rem;background:linear-gradient(135deg,rgba(39,174,96,.4),rgba(39,174,96,.2));border:1px solid rgba(39,174,96,.5);color:#7dffb3;padding:12px 28px;cursor:pointer;letter-spacing:.15em;text-transform:uppercase;transition:all .3s;position:relative;overflow:hidden;display:flex;align-items:center;gap:10px;justify-content:center;}
+.ar-mode-btn:hover{background:linear-gradient(135deg,rgba(39,174,96,.6),rgba(39,174,96,.35));transform:translateY(-2px);}
+.ar-mode-btn .ar-btn-pulse{width:8px;height:8px;border-radius:50%;background:#7dffb3;animation:arPulse 1.5s ease-in-out infinite;flex-shrink:0;}
+@keyframes arPulse{0%,100%{box-shadow:0 0 0 0 rgba(125,255,179,.5)}50%{box-shadow:0 0 0 6px rgba(125,255,179,0)}}
+
+.permission-box{background:rgba(39,174,96,.08);border:1px solid rgba(39,174,96,.25);border-radius:3px;padding:16px;margin-bottom:16px;font-size:.72rem;color:rgba(200,232,180,.8);line-height:1.7;}
+.permission-box strong{color:#7dffb3}
+.permission-box .perm-steps{margin-top:8px;padding-left:16px;}
+.permission-box .perm-steps li{margin-bottom:4px;}
+
+.ar-marker-guide{background:var(--surface);border:1px solid rgba(39,174,96,.2);border-radius:3px;padding:16px;margin-bottom:16px;}
+.ar-marker-guide h3{font-family:var(--mono);font-size:.78rem;color:#7dffb3;letter-spacing:.1em;margin-bottom:12px;}
+.marker-table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:.68rem;}
+.marker-table th{text-align:left;padding:6px 10px;font-size:.55rem;color:var(--text-dim);letter-spacing:.15em;text-transform:uppercase;border-bottom:1px solid rgba(200,180,80,.1);}
+.marker-table td{padding:8px 10px;border-bottom:1px solid rgba(200,180,80,.05);color:rgba(232,206,138,.75);vertical-align:middle;}
+.marker-table tr:last-child td{border-bottom:none}
+.mk-swatch{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:6px;vertical-align:middle;}
+.barcode-chip{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.06);border:1px solid rgba(200,180,80,.15);border-radius:3px;padding:3px 8px;font-size:.6rem;color:var(--wall);letter-spacing:.08em;}
+.barcode-chip .bc-icon{font-size:.9rem;}
+
+.ar-tools{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.ar-tool{background:var(--surface);border:1px solid rgba(200,180,80,.1);border-radius:3px;padding:16px;text-align:center;}
+.ar-tool h3{font-family:var(--mono);font-size:.8rem;color:var(--wall);margin-bottom:12px;letter-spacing:.05em}
+.dice-visual{width:80px;height:80px;margin:0 auto 12px;background:var(--surface);border:2px solid rgba(230,126,34,.5);border-radius:10px;display:grid;padding:10px;box-shadow:0 4px 20px rgba(230,126,34,.2),inset 0 1px 0 rgba(255,255,255,.05);}
+.dot{width:12px;height:12px;background:var(--amber);border-radius:50%;box-shadow:0 0 4px rgba(230,126,34,.5);place-self:center;}
+.ar-result{font-size:1.2rem;font-weight:700;color:var(--wall);margin-bottom:8px;min-height:28px}
+.ar-count{font-size:.6rem;color:var(--text-dim);margin-bottom:10px}
+.ar-action-btn{width:100%;font-family:var(--mono);font-size:.7rem;padding:8px;cursor:pointer;letter-spacing:.05em;border:none;transition:all .2s;border-radius:2px;margin-bottom:4px;}
+.ar-action-btn.primary{background:rgba(192,57,43,.6);color:var(--text)}
+.ar-action-btn.secondary{background:rgba(200,180,80,.15);color:var(--text);border:1px solid rgba(200,180,80,.2)}
+.ar-action-btn:hover{filter:brightness(1.2)}
+.ar-stats{font-size:.6rem;color:var(--text-dim);text-align:left;margin-top:6px;line-height:1.8}
+.two-coins-wrap{display:flex;gap:16px;justify-content:center;margin-bottom:12px;}
+.coin-single{display:flex;flex-direction:column;align-items:center;gap:6px;}
+.coin-label{font-size:.55rem;color:var(--text-dim);letter-spacing:.15em;text-transform:uppercase;}
+.coin-visual{width:75px;height:75px;border-radius:50%;background:linear-gradient(145deg,var(--amber),#d35400);display:flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:700;cursor:pointer;box-shadow:0 4px 20px rgba(230,126,34,.3),inset 0 2px 0 rgba(255,255,255,.15);transition:transform .1s;font-family:var(--mono);letter-spacing:-.02em;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5);}
+.coin-visual:active{transform:scale(.95)}
+
+.tujuan-list{display:flex;flex-direction:column;gap:10px}
+.tujuan-item{background:var(--surface);border:1px solid rgba(200,180,80,.1);border-radius:3px;padding:16px;display:flex;align-items:flex-start;gap:12px;transition:border-color .2s;}
+.tujuan-item:hover{border-color:rgba(200,180,80,.25)}
+.tujuan-num{width:30px;height:30px;flex-shrink:0;border-radius:2px;background:rgba(192,57,43,.3);border:1px solid rgba(192,57,43,.4);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:.75rem;color:var(--wall);}
+.tujuan-text{font-size:.75rem;color:rgba(232,206,138,.75);line-height:1.6}
+
+.identity-form{background:var(--surface);border:1px solid rgba(200,180,80,.2);border-radius:3px;padding:28px;max-width:500px;margin:0 auto;}
+.identity-form h3{font-family:var(--serif);font-size:1.1rem;color:var(--wall);text-align:center;letter-spacing:.08em;margin-bottom:6px;}
+.identity-form p{font-size:.65rem;color:var(--text-dim);text-align:center;margin-bottom:24px;letter-spacing:.05em;}
+.id-field{margin-bottom:16px;}
+.id-field label{display:block;font-family:var(--mono);font-size:.65rem;color:var(--text-dim);letter-spacing:.15em;text-transform:uppercase;margin-bottom:6px;}
+.id-field input{width:100%;background:rgba(200,180,80,.05);border:1px solid rgba(200,180,80,.2);color:var(--text);font-family:var(--mono);font-size:.8rem;padding:10px 12px;outline:none;transition:border-color .2s;border-radius:2px;}
+.id-field input:focus{border-color:rgba(200,180,80,.5);}
+.id-field input::placeholder{color:rgba(200,180,80,.3);}
+.start-quiz-btn{width:100%;background:rgba(192,57,43,.5);border:1px solid rgba(192,57,43,.6);color:var(--text);font-family:var(--mono);font-size:.8rem;padding:12px;cursor:pointer;letter-spacing:.15em;text-transform:uppercase;margin-top:8px;transition:all .2s;}
+.start-quiz-btn:hover{background:rgba(192,57,43,.7)}
+.mission-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:8px;}
+.mission-card{position:relative;border-radius:4px;overflow:hidden;cursor:pointer;border:1px solid rgba(200,180,80,.15);transition:all .3s;background:var(--surface);}
+.mission-card:hover{border-color:rgba(200,180,80,.4);transform:translateY(-3px)}
+.mission-card.completed{border-color:rgba(39,174,96,.4);}
+.mission-card.completed .mission-status{background:rgba(39,174,96,.2);color:#7dffb3;border-color:rgba(39,174,96,.4);}
+.mission-scene{height:130px;position:relative;overflow:hidden;}
+.mission-info{padding:14px;}
+.mission-num{font-family:var(--mono);font-size:.55rem;color:rgba(200,180,80,.4);letter-spacing:.3em;text-transform:uppercase;margin-bottom:4px;}
+.mission-title{font-family:var(--serif);font-size:1rem;color:var(--text);letter-spacing:.04em;margin-bottom:4px;}
+.mission-desc{font-size:.65rem;color:var(--text-dim);line-height:1.4;}
+.mission-status{position:absolute;top:10px;right:10px;font-family:var(--mono);font-size:.5rem;padding:3px 8px;border:1px solid rgba(200,180,80,.25);color:rgba(200,180,80,.5);letter-spacing:.15em;text-transform:uppercase;}
+.mission-score-badge{position:absolute;bottom:10px;right:10px;font-family:var(--mono);font-size:.6rem;color:var(--green);letter-spacing:.05em;}
+.mission-header-bar{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;}
+.back-to-missions{font-family:var(--mono);font-size:.65rem;padding:6px 14px;background:rgba(200,180,80,.08);border:1px solid rgba(200,180,80,.2);color:var(--text-dim);cursor:pointer;transition:all .2s;letter-spacing:.08em;}
+.back-to-missions:hover{color:var(--wall);border-color:rgba(200,180,80,.4);}
+.mission-3d-scene{width:100%;height:180px;position:relative;overflow:hidden;border-radius:4px;margin-bottom:20px;border:1px solid rgba(200,180,80,.12);}
+.scene-evakuasi{background:linear-gradient(180deg,#1a0f00 0%,#2d1a00 40%,#1a0f00 100%);}
+.evak-corridor{position:absolute;inset:0;background:linear-gradient(180deg,#c8a04a 0%,#8b6a20 50%,#5a4010 100%);clip-path:polygon(20% 0,80% 0,100% 100%,0 100%);}
+.evak-door{position:absolute;background:rgba(0,0,0,.7);border:4px solid #5a3a00;}
+.evak-door-a{width:60px;height:90px;left:15%;top:20%;box-shadow:-4px 0 20px rgba(255,150,0,.3),inset 2px 0 8px rgba(0,0,0,.5);}
+.evak-door-a::before{content:'A';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-family:var(--serif);font-size:1.5rem;color:rgba(200,150,50,.8);}
+.evak-door-b{width:60px;height:90px;right:15%;top:20%;box-shadow:4px 0 20px rgba(255,50,50,.2),inset -2px 0 8px rgba(0,0,0,.5);}
+.evak-door-b::before{content:'B';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-family:var(--serif);font-size:1.5rem;color:rgba(200,150,50,.8);}
+.evak-sign{position:absolute;top:8px;left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:.6rem;color:rgba(0,255,100,.7);letter-spacing:.2em;text-transform:uppercase;animation:signBlink 1.5s ease-in-out infinite;}
+@keyframes signBlink{0%,100%{opacity:.7;text-shadow:0 0 8px rgba(0,255,100,.5)}50%{opacity:1;text-shadow:0 0 15px rgba(0,255,100,.9)}}
+.evak-arrow{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);font-size:1.5rem;animation:arrowBounce 1s ease-in-out infinite;}
+@keyframes arrowBounce{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(-5px)}}
+.evak-light{position:absolute;width:3px;height:100%;background:linear-gradient(180deg,rgba(200,150,50,.6),transparent);animation:evakLightFlicker 2s ease-in-out infinite;}
+.evak-light-1{left:20%}.evak-light-2{right:20%;animation-delay:.7s}
+@keyframes evakLightFlicker{0%,100%{opacity:.6}40%{opacity:.2}50%{opacity:.8}}
+.evak-floor{position:absolute;bottom:0;left:0;right:0;height:40%;background:linear-gradient(0deg,#3a2800,#5a4010);}
+.evak-floor::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent,transparent 30px,rgba(0,0,0,.2) 30px,rgba(0,0,0,.2) 32px);}
+.scene-cuaca{background:linear-gradient(180deg,#0a0a20 0%,#15152e 50%,#0a0a20 100%);overflow:hidden;}
+.cloud{position:absolute;background:rgba(50,50,80,.8);border-radius:50px;}
+.cloud::before,.cloud::after{content:'';position:absolute;background:inherit;border-radius:50%;}
+.cloud-1{width:80px;height:35px;top:20%;left:10%;animation:cloudDrift 8s ease-in-out infinite;}
+.cloud-1::before{width:40px;height:40px;top:-15px;left:15px;}.cloud-1::after{width:30px;height:30px;top:-8px;left:40px;}
+.cloud-2{width:100px;height:40px;top:15%;right:10%;animation:cloudDrift 11s ease-in-out infinite reverse;opacity:.7;}
+.cloud-2::before{width:50px;height:50px;top:-20px;left:20px;}.cloud-2::after{width:35px;height:35px;top:-10px;left:55px;}
+.cloud-3{width:60px;height:28px;top:30%;left:40%;animation:cloudDrift 9s ease-in-out infinite 2s;opacity:.5;}
+.cloud-3::before{width:30px;height:30px;top:-12px;left:12px;}
+@keyframes cloudDrift{0%,100%{transform:translateX(0)}50%{transform:translateX(20px)}}
+.lightning{position:absolute;width:4px;height:60px;background:linear-gradient(180deg,rgba(200,200,255,.9),transparent);clip-path:polygon(20% 0,80% 0,60% 40%,100% 40%,20% 100%,40% 60%,0 60%);animation:lightningFlash 3s ease-in-out infinite;}
+.lightning-1{left:25%;top:30%;animation-delay:0s;}.lightning-2{right:25%;top:25%;animation-delay:1.4s;transform:scaleX(-1);}
+@keyframes lightningFlash{0%,85%,100%{opacity:0}88%{opacity:1}92%{opacity:.3}95%{opacity:.9}}
+.rain{position:absolute;inset:0;overflow:hidden;}
+.raindrop{position:absolute;width:2px;height:15px;background:linear-gradient(180deg,transparent,rgba(100,150,255,.5));border-radius:1px;animation:rainFall linear infinite;}
+@keyframes rainFall{0%{transform:translateY(-20px) rotate(15deg);opacity:0}10%{opacity:.6}100%{transform:translateY(200px) rotate(15deg);opacity:0}}
+.storm-glow{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 30%,rgba(30,30,80,.8) 0%,rgba(5,5,20,.95) 100%);}
+.cuaca-label{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:.55rem;color:rgba(100,150,255,.6);letter-spacing:.2em;text-transform:uppercase;white-space:nowrap;}
+.scene-koin{background:radial-gradient(ellipse at center,#1a1000 0%,#0a0800 100%);display:flex;align-items:center;justify-content:center;gap:30px;}
+.ancient-coin{width:70px;height:70px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#f5d060,#c8902a,#7a5200);border:3px solid rgba(200,160,50,.4);position:relative;box-shadow:0 0 20px rgba(200,150,50,.3),0 4px 15px rgba(0,0,0,.5),inset 0 2px 4px rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;animation:coinFloat 3s ease-in-out infinite;cursor:default;}
+.ancient-coin:nth-child(2){animation-delay:1s;}
+.ancient-coin::before{content:'';position:absolute;inset:6px;border-radius:50%;border:1px solid rgba(200,160,50,.3);}
+.coin-rune{font-size:1.8rem;filter:drop-shadow(0 0 4px rgba(200,150,50,.5));}
+@keyframes coinFloat{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-8px) rotate(5deg)}}
+.coin-sparkle{position:absolute;width:4px;height:4px;border-radius:50%;background:rgba(255,230,100,.8);animation:sparkleAnim 2s ease-in-out infinite;}
+@keyframes sparkleAnim{0%,100%{opacity:0;transform:scale(0)}50%{opacity:1;transform:scale(1)}}
+.scene-koin-overlay{position:absolute;inset:0;background:linear-gradient(0deg,rgba(0,0,0,.5) 0%,transparent 50%,rgba(0,0,0,.3) 100%);}
+.koin-rune-text{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);font-family:var(--serif);font-size:.6rem;color:rgba(200,160,50,.5);letter-spacing:.3em;white-space:nowrap;}
+.scene-kartu{background:radial-gradient(ellipse at center,#150a0a 0%,#0a0505 100%);display:flex;align-items:center;justify-content:center;gap:10px;perspective:400px;}
+.color-card{width:45px;height:70px;border-radius:5px;position:relative;box-shadow:0 6px 20px rgba(0,0,0,.5);transform-style:preserve-3d;animation:cardHover 4s ease-in-out infinite;}
+.color-card:nth-child(2){animation-delay:.5s;}.color-card:nth-child(3){animation-delay:1s;}.color-card:nth-child(4){animation-delay:1.5s;}.color-card:nth-child(5){animation-delay:2s;}
+.color-card.red{background:linear-gradient(135deg,#c0392b,#8e1010);}.color-card.red::after{content:'♥';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:1.4rem;color:rgba(255,150,150,.8);}
+.color-card.blue{background:linear-gradient(135deg,#2980b9,#0a4a7a);}.color-card.blue::after{content:'♦';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:1.4rem;color:rgba(100,200,255,.8);}
+.color-card.dark{background:linear-gradient(135deg,#2c2c2c,#111);}.color-card.dark::after{content:'★';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:1.2rem;color:rgba(200,180,80,.6);}
+@keyframes cardHover{0%,100%{transform:translateY(0) rotateY(0deg)}50%{transform:translateY(-6px) rotateY(8deg)}}
+.kartu-table{position:absolute;bottom:0;left:0;right:0;height:30%;background:linear-gradient(0deg,rgba(20,30,10,.9),rgba(30,50,20,.5));border-top:1px solid rgba(100,150,50,.2);}
+.scene-obat{background:radial-gradient(ellipse at center,#0a1520 0%,#050a10 100%);display:flex;align-items:flex-end;justify-content:center;gap:30px;padding-bottom:20px;}
+.med-box{position:relative;width:80px;height:80px;transform-style:preserve-3d;animation:boxFloat 3s ease-in-out infinite;}
+.med-box:nth-child(2){animation-delay:1.2s;}
+.med-box-face{position:absolute;background:rgba(30,80,130,.7);border:1px solid rgba(50,130,200,.4);display:flex;align-items:center;justify-content:center;}
+.med-box-front{width:80px;height:80px;bottom:0;left:0;border-radius:2px;}
+.med-box-label{font-family:var(--serif);font-size:1rem;color:rgba(100,200,255,.8);text-shadow:0 0 8px rgba(50,150,255,.5);}
+.med-cross{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;}
+.med-cross::before,.med-cross::after{content:'';position:absolute;background:rgba(100,200,100,.6);border-radius:1px;}
+.med-cross::before{width:3px;height:24px;}.med-cross::after{width:24px;height:3px;}
+.med-pills{position:absolute;top:-10px;left:50%;transform:translateX(-50%);display:flex;gap:3px;}
+.pill{width:8px;height:16px;border-radius:4px;animation:pillFloat 2s ease-in-out infinite;}
+.pill:nth-child(2){animation-delay:.4s;}.pill:nth-child(3){animation-delay:.8s;}
+.pill-red{background:linear-gradient(180deg,#e74c3c,#8e1010);}.pill-blue{background:linear-gradient(180deg,#3498db,#0a4a7a);}
+@keyframes pillFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@keyframes boxFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.med-box-tag{position:absolute;bottom:-20px;left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:.7rem;color:rgba(50,150,200,.7);white-space:nowrap;}
+.obat-glow{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 80%,rgba(30,80,130,.3) 0%,transparent 70%);}
+.mission-panel{background:var(--surface);border:1px solid rgba(200,180,80,.15);border-radius:4px;overflow:hidden;margin-bottom:20px;}
+.mission-panel-header{background:rgba(200,180,80,.06);border-bottom:1px solid rgba(200,180,80,.1);padding:14px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+.mission-panel-header h3{font-family:var(--serif);font-size:1rem;color:var(--wall);letter-spacing:.06em;}
+.mission-timer-box{display:flex;align-items:center;gap:8px;}
+.sw-label{font-size:.5rem;color:var(--text-dim);letter-spacing:.2em;text-transform:uppercase;}
+.sw-display{background:rgba(200,180,80,.08);border:1px solid rgba(200,180,80,.2);padding:5px 12px;border-radius:2px;color:var(--wall);font-size:.85rem;font-weight:700;letter-spacing:.08em;min-width:70px;text-align:center;font-family:var(--mono);}
+.mission-progress{display:flex;gap:6px;align-items:center;padding:10px 20px;border-bottom:1px solid rgba(200,180,80,.08);background:rgba(0,0,0,.2);}
+.mission-progress-label{font-family:var(--mono);font-size:.55rem;color:var(--text-dim);letter-spacing:.15em;text-transform:uppercase;margin-right:4px;}
+.q-dot{width:10px;height:10px;border-radius:50%;background:rgba(200,180,80,.2);border:1px solid rgba(200,180,80,.3);transition:all .3s;}
+.q-dot.done{background:var(--green);border-color:var(--green);}
+.q-dot.current{background:var(--amber);border-color:var(--amber);box-shadow:0 0 6px rgba(230,126,34,.5);}
+.q-dot.wrong{background:var(--red);border-color:var(--red);}
+.sub-question-area{padding:20px;}
+.sub-q-label{font-family:var(--mono);font-size:.6rem;color:rgba(200,180,80,.5);letter-spacing:.2em;text-transform:uppercase;margin-bottom:8px;}
+.quiz-q{font-size:.88rem;color:var(--text);line-height:1.65;margin-bottom:18px;letter-spacing:.02em;}
+.quiz-opts{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+.quiz-opt{padding:11px 16px;border:1px solid rgba(200,180,80,.15);border-radius:2px;background:rgba(200,180,80,.04);cursor:pointer;font-family:var(--mono);font-size:.78rem;color:var(--text);text-align:left;transition:all .2s;letter-spacing:.02em;}
+.quiz-opt:hover:not(.locked){border-color:rgba(200,180,80,.4);background:rgba(200,180,80,.1);transform:translateX(4px);}
+.quiz-opt.correct{background:rgba(39,174,96,.15);border-color:var(--green);color:#7dffb3}
+.quiz-opt.wrong{background:rgba(192,57,43,.15);border-color:var(--red);color:#ff9999}
+.quiz-opt.locked{pointer-events:none}
+.quiz-feedback{padding:12px 16px;border-radius:2px;margin-bottom:14px;font-family:var(--mono);font-size:.76rem;line-height:1.55;}
+.quiz-feedback.correct-fb{background:rgba(39,174,96,.1);border:1px solid rgba(39,174,96,.2);color:#7dffb3}
+.quiz-feedback.wrong-fb{background:rgba(192,57,43,.1);border:1px solid rgba(192,57,43,.2);color:#ff9999}
+.hint-box{padding:11px 16px;border:1px dashed rgba(200,180,80,.25);background:rgba(200,180,80,.04);border-radius:2px;font-family:var(--mono);font-size:.72rem;color:rgba(200,180,80,.7);line-height:1.6;margin-bottom:14px;}
+.hint-box strong{color:var(--wall)}
+.quiz-actions{display:flex;gap:8px;flex-wrap:wrap}
+.quiz-btn{font-family:var(--mono);font-size:.72rem;padding:8px 16px;cursor:pointer;letter-spacing:.08em;border:none;transition:all .2s;border-radius:2px;}
+.quiz-btn.hint-btn{background:rgba(200,180,80,.1);border:1px solid rgba(200,180,80,.2);color:var(--text-dim);}
+.quiz-btn.hint-btn:hover{background:rgba(200,180,80,.2);color:var(--text)}
+.quiz-btn.hint-btn:disabled{opacity:.35;cursor:not-allowed;}
+.quiz-btn.next-btn{background:rgba(230,126,34,.4);color:var(--text);}
+.quiz-btn.next-btn:hover{background:rgba(230,126,34,.6)}
+.quiz-btn.finish-btn{background:rgba(192,57,43,.5);color:var(--text);}
+.quiz-btn.finish-btn:hover{background:rgba(192,57,43,.7)}
+.mission-score-bar{display:flex;gap:10px;align-items:center;justify-content:flex-end;padding:8px 20px;border-top:1px solid rgba(200,180,80,.08);font-family:var(--mono);font-size:.65rem;color:var(--text-dim);}
+.score-val{color:var(--wall);font-size:.85rem;font-weight:700;}
+.quiz-result{text-align:center;padding:36px 24px;background:var(--surface);border:1px solid rgba(200,180,80,.15);border-radius:3px;}
+.result-emoji{font-size:3rem;margin-bottom:16px;display:block}
+.result-title{font-family:var(--serif);font-size:1.4rem;color:var(--wall);margin-bottom:8px;}
+.result-sub{font-size:.78rem;color:var(--text-dim);margin-bottom:6px;line-height:1.6;}
+.track-record{background:rgba(200,180,80,.04);border:1px solid rgba(200,180,80,.15);border-radius:3px;padding:16px;margin-top:16px;}
+.track-record h4{font-family:var(--mono);font-size:.7rem;color:var(--wall);letter-spacing:.15em;text-transform:uppercase;margin-bottom:12px;}
+.track-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+.track-stat{text-align:center;padding:10px;background:rgba(200,180,80,.06);border-radius:2px;}
+.track-stat .ts-val{font-family:var(--mono);font-size:1.1rem;font-weight:700;color:var(--wall);}
+.track-stat .ts-label{font-size:.55rem;color:var(--text-dim);letter-spacing:.1em;text-transform:uppercase;margin-top:3px;}
+.mission-breakdown{margin-top:12px;text-align:left;}
+.breakdown-row{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid rgba(200,180,80,.06);font-family:var(--mono);font-size:.68rem;}
+.breakdown-row:last-child{border-bottom:none;}
+.breakdown-name{color:var(--text-dim);}.breakdown-score{color:var(--wall);}
+.export-btn{width:100%;margin-top:12px;background:rgba(39,174,96,.3);border:1px solid rgba(39,174,96,.4);color:var(--text);font-family:var(--mono);font-size:.72rem;padding:10px;cursor:pointer;letter-spacing:.12em;text-transform:uppercase;border-radius:2px;transition:all .2s;}
+.export-btn:hover{background:rgba(39,174,96,.5)}
+.result-actions{display:flex;gap:8px;justify-content:center;margin-top:16px;flex-wrap:wrap}
+.restart-btn-sm{font-family:var(--mono);font-size:.72rem;padding:10px 24px;cursor:pointer;letter-spacing:.08em;border:none;transition:all .2s;border-radius:2px;}
+.restart-btn-sm.red{background:rgba(192,57,43,.4);color:var(--text);}.restart-btn-sm.red:hover{background:rgba(192,57,43,.6)}
+.restart-btn-sm.gold{background:rgba(200,180,80,.2);border:1px solid rgba(200,180,80,.3);color:var(--text);}.restart-btn-sm.gold:hover{background:rgba(200,180,80,.35)}
+.about-card{background:var(--surface);border:1px solid rgba(200,180,80,.1);border-radius:3px;padding:24px;margin-bottom:12px;}
+.about-card h3{font-family:var(--mono);font-size:.85rem;color:var(--wall);margin-bottom:10px;letter-spacing:.05em}
+.about-card p,.about-card li{font-size:.75rem;color:rgba(232,206,138,.75);line-height:1.7}
+.about-card ul{list-style:none;display:flex;flex-direction:column;gap:4px}
+.about-card ul li::before{content:'▸ ';color:var(--amber);opacity:.7}
+.dev-profile-card{background:var(--surface);border:1px solid rgba(200,180,80,.18);border-radius:3px;padding:28px;margin-bottom:12px;position:relative;overflow:hidden;}
+.dev-profile-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--red),var(--amber),var(--wall));}
+.dev-profile-inner{display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap}
+.dev-avatar{width:80px;height:80px;flex-shrink:0;background:linear-gradient(145deg,rgba(192,57,43,.4),rgba(200,180,80,.3));border:2px solid rgba(200,180,80,.3);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:2.2rem;}
+.dev-info{flex:1;min-width:200px}
+.dev-name{font-family:var(--serif);font-size:1.1rem;color:var(--wall);letter-spacing:.06em;margin-bottom:4px;}
+.dev-nim{font-family:var(--mono);font-size:.6rem;color:var(--text-dim);letter-spacing:.2em;margin-bottom:10px;text-transform:uppercase;}
+.dev-badges{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.dev-badge{font-family:var(--mono);font-size:.55rem;padding:3px 10px;border-radius:2px;letter-spacing:.15em;text-transform:uppercase;}
+.dev-badge.univ{background:rgba(52,152,219,.15);border:1px solid rgba(52,152,219,.3);color:rgba(130,200,255,.8)}
+.dev-badge.prodi{background:rgba(39,174,96,.15);border:1px solid rgba(39,174,96,.3);color:rgba(125,255,179,.8)}
+.dev-badge.birth{background:rgba(155,89,182,.15);border:1px solid rgba(155,89,182,.3);color:rgba(200,150,255,.8)}
+.dev-bio{font-size:.72rem;color:rgba(232,206,138,.65);line-height:1.7;border-top:1px solid rgba(200,180,80,.08);padding-top:10px;margin-top:4px;}
+.dev-stat-row{display:flex;gap:12px;margin-top:10px;flex-wrap:wrap}
+.dev-stat{font-family:var(--mono);font-size:.6rem;color:var(--text-dim);display:flex;align-items:center;gap:6px;}
+.dev-stat span:first-child{color:var(--amber)}
+.transition-flash{position:fixed;inset:0;z-index:600;background:var(--bg);pointer-events:none;opacity:0;transition:opacity .1s;}
+.transition-flash.show{opacity:1}
+@keyframes roomZoomIn{0%{transform:scale(3) translateZ(0);opacity:0;filter:blur(8px)}100%{transform:scale(1) translateZ(0);opacity:1;filter:blur(0)}}
+.page.room-enter{animation:roomZoomIn .6s cubic-bezier(.2,0,.8,1) forwards}
+@keyframes ambientPulse{0%,100%{box-shadow:0 0 20px rgba(200,180,80,.03)}50%{box-shadow:0 0 40px rgba(200,180,80,.08)}}
+#sidebar{animation:ambientPulse 6s ease-in-out infinite}
+</style>
+</head>
+<body>
+
+<div class="grain-overlay"></div>
+<div class="vignette"></div>
+<div class="scanline"></div>
+<div class="transition-flash" id="tFlash"></div>
+
+<div id="ar-scene-wrapper">
+  <div id="ar-loading-msg" class="hidden">
+    <div class="ar-spinner"></div>
+    <span>Memuat AR Engine...</span>
+  </div>
+</div>
+
+<div id="ar-hud-overlay">
+  <div class="ar-hud-corner ar-hud-tl"></div>
+  <div class="ar-hud-corner ar-hud-tr"></div>
+  <div class="ar-hud-corner ar-hud-bl"></div>
+  <div class="ar-hud-corner ar-hud-br"></div>
+  <div class="ar-hud-label">🔬 AR MODE · SURVIVAL PROBABILITY LAB · AKTIF</div>
+  <div class="ar-hud-status" id="arHudStatus">Arahkan kamera ke barcode marker untuk memunculkan objek AR</div>
+  <div id="ar-legend">
+    <div class="leg-title">BARCODE MARKER GUIDE</div>
+    <div class="leg-row"><span class="leg-dot" style="background:#f39c12"></span> Barcode #0 → Koin · Frekuensi Relatif</div>
+    <div class="leg-row"><span class="leg-dot" style="background:#c0392b"></span> Barcode #1 → Dadu · Kejadian Majemuk</div>
+    <div class="leg-row"><span class="leg-dot" style="background:#2980b9"></span> Barcode #2 → Hujan · Ruang Sampel</div>
+    <div class="leg-row"><span class="leg-dot" style="background:#27ae60"></span> Barcode #3 → Bola · Saling Bebas</div>
+  </div>
+  <button class="stop-ar-btn" style="position:absolute;top:14px;right:14px;" onclick="stopARMode()">✕ KELUAR AR</button>
+</div>
+
+<!-- ENTRANCE -->
+<div id="entrance">
+  <div class="fog-layer"></div>
+  <div class="fog-layer-2"></div>
+  <div class="corridor-scene">
+    <div class="corridor-container">
+      <div class="light-spill"></div>
+      <div class="door-shadow-left"></div>
+      <div class="door-shadow-right"></div>
+      <div class="door-frame"></div>
+      <div class="corridor-interior">
+        <div class="corridor-bg"></div>
+        <div class="ceiling">
+          <div class="ceiling-tile"></div>
+          <div class="neon-light neon-light-1"></div>
+          <div class="neon-light neon-light-2"></div>
+        </div>
+        <div class="wall-left"></div>
+        <div class="wall-right"></div>
+        <div class="back-wall">
+          <div class="depth-corridor depth-1"><div class="depth-light"></div></div>
+          <div class="depth-corridor depth-2"><div class="depth-light" style="animation-delay:1.8s"></div></div>
+          <div class="depth-corridor depth-3"></div>
+          <div class="depth-corridor depth-4"></div>
+          <div class="depth-corridor depth-5"></div>
+        </div>
+        <div class="floor-area"><div class="carpet-pattern"></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="entrance-ui">
+    <div class="entrance-top">
+      <div class="entrance-sub-top">Level 0 — Augmented Reality Learning</div>
+      <h1 class="entrance-title">Survival Probability Lab</h1>
+    </div>
+    <div class="entrance-bottom">
+      <button class="enter-btn" onclick="enterBackrooms()">Enter</button>
+      <p class="warning-txt">
+        ⚠ If you're not careful and get out of reality,<br>
+        you'll end up in the back room.<br>
+        Learn probability before it's too late.
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+  <div id="room-transition">
+    <div class="room-portal"></div>
+    <div class="room-flash"></div>
+  </div>
+
+  <nav id="sidebar">
+    <div class="sidebar-logo">
+      <span class="logo-icon">🔦</span>
+      <h1>Survival Probability</h1>
+      <p>Backrooms Edition</p>
+    </div>
+    <div class="nav-links">
+      <button class="nav-btn active" onclick="showPage('home')">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+        Menu Utama
+      </button>
+      <button class="nav-btn" onclick="showPage('tujuan')">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+        Tujuan Pembelajaran
+      </button>
+      <button class="nav-btn" onclick="showPage('materi')">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        Materi Peluang
+      </button>
+      <button class="nav-btn" onclick="showPage('ar')">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+        AR Interaktif
+      </button>
+      <button class="nav-btn" onclick="showPage('soal')">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Latihan Soal
+      </button>
+      <button class="nav-btn" onclick="showPage('about')">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Tentang
+      </button>
+    </div>
+    <div class="sidebar-footer">⚡ SURVIVE · LEARN · ESCAPE</div>
+  </nav>
+
+  <button id="menu-toggle" onclick="toggleSidebar()">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#e8ce8a" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+
+  <main id="main">
+
+    <!-- HOME -->
+    <div id="page-home" class="page active">
+      <div class="home-header">
+        <span class="big-emoji">🏚️</span>
+        <h2>Survival Probability Lab</h2>
+        <p>Selamat datang, penyintas. Kamu telah terjebak di Backrooms.<br>Satu-satunya jalan keluar: kuasai ilmu peluang.</p>
+      </div>
+      <div class="menu-grid">
+        <div class="room-card" onclick="roomTransition('tujuan')">
+          <div class="card-corridor"><div class="card-corridor-inner"><div class="mini-corridor"><div class="mc-frame" style="border-color:rgba(52,152,219,.6)"></div><div class="mc-ceiling" style="background:linear-gradient(180deg,#1a3a5c,#3498db)"><div class="mc-light" style="background:rgba(52,152,219,.8)"></div></div><div class="mc-back" style="background:#0d2238"><div class="mc-depth mc-d1"></div><div class="mc-depth mc-d2"></div></div><div class="mc-floor" style="background:linear-gradient(0deg,#0a1824,#1a3a5c)"></div><div style="position:absolute;top:35%;left:22%;font-size:1.5rem">🎯</div></div></div></div>
+          <div class="card-overlay"><div class="card-room-num">ROOM 001 · BRIEFING ROOM</div><div class="card-title">🎯 Tujuan Pembelajaran</div><div class="card-desc">Misi yang harus diselesaikan untuk melarikan diri</div></div>
+          <div class="card-enter">ENTER ›</div>
+        </div>
+        <div class="room-card" onclick="roomTransition('materi')">
+          <div class="card-corridor"><div class="card-corridor-inner"><div class="mini-corridor"><div class="mc-frame"></div><div class="mc-ceiling"><div class="mc-light"></div></div><div class="mc-back"><div class="mc-depth mc-d1"></div><div class="mc-depth mc-d2"></div><div class="mc-depth mc-d3"></div></div><div class="mc-floor"></div><div style="position:absolute;top:35%;left:22%;font-size:1.5rem">📖</div></div></div></div>
+          <div class="card-overlay"><div class="card-room-num">ROOM 002 · LIBRARY WING</div><div class="card-title">📖 Materi Peluang</div><div class="card-desc">12 topik: ruang sampel hingga peluang bersyarat</div></div>
+          <div class="card-enter">ENTER ›</div>
+        </div>
+        <div class="room-card" onclick="roomTransition('ar')">
+          <div class="card-corridor"><div class="card-corridor-inner"><div class="mini-corridor"><div class="mc-frame" style="border-color:rgba(39,174,96,.6)"></div><div class="mc-ceiling" style="background:linear-gradient(180deg,#1a5c3a,#2ecc71)"><div class="mc-light" style="background:rgba(46,204,113,.8)"></div></div><div class="mc-back" style="background:#0d3b22"><div class="mc-depth mc-d1"></div><div class="mc-depth mc-d2"></div></div><div class="mc-floor" style="background:linear-gradient(0deg,#0a2818,#1a5c3a)"></div><div style="position:absolute;top:35%;left:22%;font-size:1.5rem">🎲</div></div></div></div>
+          <div class="card-overlay"><div class="card-room-num">ROOM 003 · LAB WING</div><div class="card-title">🎲 AR Interaktif</div><div class="card-desc">Scan barcode marker → muncul objek 3D AR peluang nyata</div></div>
+          <div class="card-enter">ENTER ›</div>
+        </div>
+        <div class="room-card" onclick="roomTransition('soal')">
+          <div class="card-corridor"><div class="card-corridor-inner"><div class="mini-corridor"><div class="mc-frame" style="border-color:rgba(192,57,43,.6)"></div><div class="mc-ceiling" style="background:linear-gradient(180deg,#5c1a1a,#c0392b)"><div class="mc-light" style="background:rgba(192,57,43,.8)"></div></div><div class="mc-back" style="background:#380d0d"><div class="mc-depth mc-d1"></div><div class="mc-depth mc-d2"></div></div><div class="mc-floor" style="background:linear-gradient(0deg,#240a0a,#5c1a1a)"></div><div style="position:absolute;top:35%;left:22%;font-size:1.5rem">⚔️</div></div></div></div>
+          <div class="card-overlay"><div class="card-room-num">ROOM 004 · TRIAL CHAMBER</div><div class="card-title">⚔️ Latihan Soal</div><div class="card-desc">5 misi tempur — tiap misi punya sub-soal bercabang</div></div>
+          <div class="card-enter">ENTER ›</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TUJUAN -->
+    <div id="page-tujuan" class="page">
+      <div class="page-header">
+        <div class="room-tag">ROOM 001 · BRIEFING ROOM</div>
+        <h2>🎯 Tujuan Pembelajaran</h2>
+        <p>Misi-misi yang harus dikuasai untuk escape dari Backrooms</p>
+      </div>
+      <div class="tujuan-list">
+        <div class="tujuan-item"><div class="tujuan-num">01</div><div class="tujuan-text">Memahami konsep dasar peluang suatu kejadian, membaca nilai peluang sebagai ukuran kemungkinan (0 ≤ P(A) ≤ 1), dan menggunakannya dalam konteks nyata.</div></div>
+        <div class="tujuan-item"><div class="tujuan-num">02</div><div class="tujuan-text">Mampu menentukan dan menuliskan ruang sampel serta titik sampel dari berbagai percobaan acak menggunakan diagram pohon atau aturan perkalian.</div></div>
+        <div class="tujuan-item"><div class="tujuan-num">03</div><div class="tujuan-text">Menghitung peluang suatu kejadian menggunakan rumus P(A) = n(A)/n(S) dengan tepat dan sistematis.</div></div>
+        <div class="tujuan-item"><div class="tujuan-num">04</div><div class="tujuan-text">Memahami dan menerapkan frekuensi relatif dan frekuensi harapan Fh(A) = P(A) × n, dan mengaitkannya dengan Hukum Bilangan Besar melalui simulasi AR.</div></div>
+        <div class="tujuan-item"><div class="tujuan-num">05</div><div class="tujuan-text">Memahami dan menerapkan peluang komplemen P(A') = 1 − P(A), termasuk strategi efisiensi perhitungan.</div></div>
+        <div class="tujuan-item"><div class="tujuan-num">06</div><div class="tujuan-text">Menghitung peluang kejadian majemuk (gabungan A ∪ B dan irisan A ∩ B) menggunakan konsep himpunan dan diagram Venn.</div></div>
+        <div class="tujuan-item"><div class="tujuan-num">07</div><div class="tujuan-text">Membedakan dan menerapkan rumus kejadian saling lepas P(A∪B) = P(A) + P(B) dan kejadian tidak saling lepas P(A∪B) = P(A) + P(B) − P(A∩B).</div></div>
+        <div class="tujuan-item"><div class="tujuan-num">08</div><div class="tujuan-text">Memahami konsep kejadian saling bebas (independent events) dan menghitung peluangnya P(A ∩ B) = P(A) × P(B).</div></div>
+        <div class="tujuan-item"><div class="tujuan-num">09</div><div class="tujuan-text">Memahami dan menghitung peluang bersyarat P(A|B) = P(A∩B)/P(B) dan menginterpretasikannya secara kontekstual.</div></div>
+        <div class="tujuan-item"><div class="tujuan-num">10</div><div class="tujuan-text">Menghubungkan seluruh konsep peluang dengan situasi nyata dan menggunakannya sebagai dasar pengambilan keputusan.</div></div>
+      </div>
+    </div>
+
+    <!-- MATERI -->
+    <div id="page-materi" class="page">
+      <div class="page-header">
+        <div class="room-tag">ROOM 002 · LIBRARY WING</div>
+        <h2>📖 Materi Peluang</h2>
+        <p>Tembok perpustakaan ini menyimpan 12 rahasia bertahan hidup</p>
+      </div>
+      <div class="materi-card"><h3>01 // Pengertian Peluang <span class="tag-pill tag-dasar">DASAR</span></h3><p>Peluang adalah ukuran kemungkinan terjadinya suatu kejadian dalam sebuah percobaan acak. Nilai peluang selalu antara 0 (mustahil terjadi) dan 1 (pasti terjadi).</p><div class="formula-box">P(A) = n(A) / n(S)</div><p class="formula-sub">P(A) = peluang kejadian A | n(A) = banyak hasil yang memuat A | n(S) = ukuran ruang sampel</p><div class="example-box"><strong>Contoh:</strong> Melempar dadu → P(muncul 3) = 1/6 ≈ 0,167</div></div>
+      <div class="materi-card"><h3>02 // Ruang Sampel <span class="tag-pill tag-dasar">DASAR</span></h3><p>Ruang sampel (S) adalah himpunan semua hasil yang mungkin dari suatu percobaan acak.</p><div class="example-box"><strong>Dadu:</strong> S = {1, 2, 3, 4, 5, 6} → n(S) = 6<br><strong>Koin:</strong> S = {Gambar, Angka} → n(S) = 2<br><strong>2 Koin:</strong> S = {GG, GA, AG, AA} → n(S) = 4<br><strong>2 Dadu:</strong> S = {(1,1),(1,2), ..., (6,6)} → n(S) = 36</div></div>
+      <div class="materi-card"><h3>03 // Titik Sampel <span class="tag-pill tag-dasar">DASAR</span></h3><p>Titik sampel adalah setiap anggota tunggal dari ruang sampel. Untuk percobaan gabungan, gunakan aturan perkalian:</p><div class="formula-box">n(S) = n₁ × n₂ × ... × nₖ</div><div class="example-box"><strong>Contoh:</strong> Lempar 1 dadu dan 1 koin → n(S) = 6 × 2 = 12 titik sampel</div></div>
+      <div class="materi-card"><h3>04 // Kejadian (Event) <span class="tag-pill tag-dasar">DASAR</span></h3><p>Kejadian adalah himpunan bagian dari ruang sampel. <strong style="color:var(--wall)">Kejadian sederhana</strong> hanya memuat satu titik sampel, sedangkan <strong style="color:var(--wall)">kejadian majemuk</strong> memuat lebih dari satu titik sampel.</p><div class="formula-box">P(angka genap) = 3/6 = 1/2 = 0,5</div></div>
+      <div class="materi-card"><h3>05 // Frekuensi Relatif <span class="tag-pill tag-dasar">DASAR</span></h3><p>Frekuensi relatif adalah perbandingan banyaknya kejadian A muncul terhadap total seluruh percobaan.</p><div class="formula-box">Fr(A) = f(A) / n</div><p class="formula-sub">f(A) = frekuensi munculnya A | n = total percobaan | Jika n → ∞ maka Fr(A) → P(A)</p></div>
+      <div class="materi-card"><h3>06 // Frekuensi Harapan <span class="tag-pill tag-dasar">DASAR</span></h3><p>Frekuensi harapan adalah banyaknya suatu kejadian diharapkan terjadi jika percobaan dilakukan sebanyak n kali.</p><div class="formula-box">Fh(A) = P(A) × n</div><div class="example-box"><strong>Contoh:</strong> Sebuah dadu dilempar 120 kali. Frekuensi harapan muncul angka 5 = (1/6) × 120 = <strong>20 kali</strong></div></div>
+      <div class="materi-card"><h3>07 // Peluang Komplemen <span class="tag-pill tag-dasar">DASAR</span></h3><p>Komplemen kejadian A (A') adalah kejadian yang BUKAN A.</p><div class="formula-box">P(A') = 1 − P(A)</div><div class="example-box"><strong>Contoh:</strong> P(muncul ganjil pada dadu) = 1/2 → P(bukan ganjil) = 1 − 1/2 = <strong>1/2</strong></div></div>
+      <div class="materi-card"><h3>08 // Kejadian Majemuk <span class="tag-pill tag-lanjut">LANJUT</span></h3><p>Kejadian majemuk terbentuk dari penggabungan atau irisan dua kejadian atau lebih.</p><div class="formula-row"><div class="formula-box"><strong>Gabungan (∪)</strong><br><span style="font-size:.75rem">A ∪ B = A atau B</span></div><div class="formula-box"><strong>Irisan (∩)</strong><br><span style="font-size:.75rem">A ∩ B = A dan B</span></div></div></div>
+      <div class="materi-card"><h3>09 // Kejadian Saling Lepas <span class="tag-pill tag-lanjut">LANJUT</span></h3><p>Dua kejadian A dan B <strong style="color:var(--wall)">saling lepas (mutually exclusive)</strong> jika A ∩ B = ∅.</p><div class="formula-box">P(A ∪ B) = P(A) + P(B)</div><div class="example-box"><strong>Contoh (kartu):</strong> P(merah) = 0,4, P(biru) = 0,3 → P(merah atau biru) = 0,4 + 0,3 = <strong>0,7</strong></div></div>
+      <div class="materi-card"><h3>10 // Kejadian Tidak Saling Lepas <span class="tag-pill tag-lanjut">LANJUT</span></h3><p>Jika A ∩ B ≠ ∅, gunakan Rumus Inklusi-Eksklusi:</p><div class="formula-box">P(A ∪ B) = P(A) + P(B) − P(A ∩ B)</div></div>
+      <div class="materi-card"><h3>11 // Kejadian Saling Bebas <span class="tag-pill tag-lanjut">LANJUT</span></h3><p>Dua kejadian A dan B <strong style="color:var(--wall)">saling bebas (independent)</strong> jika terjadinya A tidak mempengaruhi peluang terjadinya B.</p><div class="formula-box">P(A ∩ B) = P(A) × P(B)</div><div class="example-box"><strong>Contoh:</strong> P(koin 1 angka) × P(koin 2 angka) = 0,5 × 0,5 = <strong>0,25</strong></div></div>
+      <div class="materi-card"><h3>12 // Peluang Bersyarat <span class="tag-pill tag-penting">PENTING</span></h3><p>Peluang bersyarat P(A|B) adalah peluang terjadinya A dengan syarat B sudah terjadi.</p><div class="formula-box">P(A | B) = P(A ∩ B) / P(B)</div><div class="example-box"><strong>Contoh (obat):</strong> P(antibiotik dari Kotak B) = 2/10 = <strong>0,2</strong></div></div>
+    </div>
+
+    <!-- AR INTERAKTIF -->
+    <div id="page-ar" class="page">
+      <div class="page-header">
+        <div class="room-tag">ROOM 003 · LAB WING</div>
+        <h2>🎲 AR Interaktif</h2>
+        <p>Scan barcode marker fisik untuk memunculkan objek 3D probabilitas di dunia nyata</p>
+      </div>
+      <div class="permission-box">
+        <strong>⚠️ Syarat Mode AR:</strong> Aplikasi ini butuh akses kamera. Pastikan:
+        <ul class="perm-steps">
+          <li>Buka halaman ini via <strong>HTTPS</strong> atau <strong>localhost</strong> (wajib untuk kamera)</li>
+          <li>Klik <strong>Allow / Izinkan</strong> saat browser meminta akses kamera</li>
+          <li>Jika kamera ditolak: Settings browser → Site Permissions → Camera → Allow</li>
+          <li>Gunakan <strong>Chrome / Firefox terbaru</strong> untuk hasil terbaik</li>
+          <li>Print atau tampilkan gambar barcode marker di layar lain</li>
+          <li>Download marker di: <code style="color:#7dffb3;font-size:.65rem">github.com/nicktarnold/AR.js/tree/master/data/images</code></li>
+        </ul>
+      </div>
+      <button class="ar-mode-btn" onclick="startARMode()" style="width:100%;margin-bottom:20px;">
+        <div class="ar-btn-pulse"></div>
+        🔬 AKTIFKAN MODE AR — Scan Barcode Marker Peluang
+      </button>
+      <div class="ar-marker-guide">
+        <h3>📋 Panduan Barcode Marker AR</h3>
+        <table class="marker-table">
+          <thead><tr><th>Barcode Value</th><th>File untuk Diprint</th><th>Objek 3D</th><th>Topik</th></tr></thead>
+          <tbody>
+            <tr><td><span class="barcode-chip"><span class="bc-icon">▦</span> value="0"</span></td><td><code style="font-size:.62rem;color:rgba(200,180,80,.8)">barcode-0.png</code></td><td><span class="mk-swatch" style="background:#f39c12"></span> Bola Kuning</td><td>🪙 Frekuensi Relatif</td></tr>
+            <tr><td><span class="barcode-chip"><span class="bc-icon">▦</span> value="1"</span></td><td><code style="font-size:.62rem;color:rgba(200,180,80,.8)">barcode-1.png</code></td><td><span class="mk-swatch" style="background:#c0392b"></span> Kubus Merah</td><td>🎲 Kejadian Majemuk</td></tr>
+            <tr><td><span class="barcode-chip"><span class="bc-icon">▦</span> value="2"</span></td><td><code style="font-size:.62rem;color:rgba(200,180,80,.8)">barcode-2.png</code></td><td><span class="mk-swatch" style="background:#2980b9"></span> Kerucut Biru</td><td>☁️ Ruang Sampel</td></tr>
+            <tr><td><span class="barcode-chip"><span class="bc-icon">▦</span> value="3"</span></td><td><code style="font-size:.62rem;color:rgba(200,180,80,.8)">barcode-3.png</code></td><td><span class="mk-swatch" style="background:#27ae60"></span> Silinder Hijau</td><td>🔵 Saling Bebas</td></tr>
+          </tbody>
+        </table>
+        <div style="margin-top:10px;padding:8px 12px;background:rgba(200,180,80,.04);border:1px dashed rgba(200,180,80,.15);border-radius:2px;font-size:.62rem;color:var(--text-dim);line-height:1.7;">
+          ⚠️ Marker di atas <strong style="color:var(--wall)">bukan file dalam project</strong> — AR.js mengenali secara otomatis berdasarkan value numerik.
+        </div>
+      </div>
+      <div style="font-family:var(--mono);font-size:.65rem;color:var(--text-dim);letter-spacing:.15em;text-transform:uppercase;margin-bottom:12px;padding-top:8px;border-top:1px solid rgba(200,180,80,.08);">🎰 Simulasi Manual (tanpa kamera)</div>
+      <div class="ar-tools">
+        <div class="ar-tool">
+          <h3>🎲 Dadu</h3>
+          <div class="dice-visual" id="diceEl"></div>
+          <div class="ar-result" id="diceResult">—</div>
+          <div class="ar-count">Total: <span id="diceCount">0</span> lemparan</div>
+          <button class="ar-action-btn primary" onclick="rollDice()">Kocok Dadu</button>
+          <button class="ar-action-btn secondary" onclick="autoRoll()">Auto Kocok 10×</button>
+          <div class="ar-stats" id="diceStats"></div>
+        </div>
+        <div class="ar-tool">
+          <h3>🪙 Dua Koin</h3>
+          <div class="two-coins-wrap">
+            <div class="coin-single"><div class="coin-label">Koin 1</div><div class="coin-visual" id="coinEl1" onclick="flipSingleCoin(1)"><span id="coinFace1">?</span></div></div>
+            <div class="coin-single"><div class="coin-label">Koin 2</div><div class="coin-visual" id="coinEl2" onclick="flipSingleCoin(2)"><span id="coinFace2">?</span></div></div>
+          </div>
+          <div class="ar-result" id="coinResult" style="font-size:.85rem">Klik koin atau flip keduanya!</div>
+          <div class="ar-count" id="coinStats" style="line-height:1.8;font-size:.6rem">GG: 0 | GA: 0 | AG: 0 | AA: 0<br>Total: 0</div>
+          <button class="ar-action-btn primary" onclick="flipBothCoins()">Flip Kedua Koin</button>
+          <button class="ar-action-btn secondary" onclick="autoFlipBoth()">Auto Flip 10×</button>
+          <div class="ar-stats" id="coinFreqStats"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LATIHAN SOAL -->
+    <div id="page-soal" class="page">
+      <div class="page-header">
+        <div class="room-tag">ROOM 004 · TRIAL CHAMBER</div>
+        <h2>⚔️ Latihan Soal</h2>
+        <p>Isi identitasmu, lalu selesaikan 5 misi tempur peluang</p>
+      </div>
+      <div id="quizArea"></div>
+    </div>
+
+    <!-- ABOUT -->
+    <div id="page-about" class="page">
+      <div class="page-header"><div class="room-tag">SYSTEM · INFO</div><h2>ℹ️ Tentang Aplikasi</h2><p>Data sistem Survival Probability Lab</p></div>
+      <div class="dev-profile-card">
+        <div class="dev-profile-inner">
+          <div class="dev-avatar">👩‍💻</div>
+          <div class="dev-info">
+            <div class="dev-name">Vanessa Zahwa Chakim</div>
+            <div class="dev-nim">NIM · 2210631050112</div>
+            <div class="dev-badges">
+              <span class="dev-badge univ">🏛️ Unsika Karawang</span>
+              <span class="dev-badge prodi">📐 Pendidikan Matematika</span>
+              <span class="dev-badge birth">🎂 Jakarta, 2004</span>
+            </div>
+            <div class="dev-stat-row">
+              <div class="dev-stat"><span>✦</span><span>Designed & Built</span></div>
+              <div class="dev-stat"><span>✦</span><span>Universitas Singaperbangsa Karawang</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="dev-bio">Mahasiswa Program Studi Pendidikan Matematika, Universitas Singaperbangsa Karawang. Aplikasi <em>Survival Probability Lab</em> ini dirancang sebagai media pembelajaran interaktif berbasis Augmented Reality dengan tema Backrooms untuk siswa SMA.</div>
+      </div>
+      <div class="about-card"><h3>// SURVIVAL PROBABILITY LAB</h3><p>Aplikasi pembelajaran matematika bertema Backrooms untuk siswa SMA. Menggabungkan estetika liminal horror dengan konten akademik — peluang dipelajari lewat simulasi interaktif, AR barcode marker-based (AR.js + A-Frame), dan latihan soal misi bercabang.</p></div>
+      <div class="about-card"><h3>// FITUR</h3><ul><li>Entrance screen Backrooms dengan koridor CSS 3D perspektif</li><li>Transisi antar room dengan efek zoom-in 3D</li><li>AR menggunakan AR.js 3.4.5 + A-Frame 1.4.0 dengan 4 barcode marker (value 0–3)</li><li>Tiap marker memunculkan objek 3D berbeda: kubus, bola, kerucut, silinder</li><li>Simulasi dadu dan 2 koin dengan statistik frekuensi relatif lengkap</li><li>12 materi peluang lengkap: dari ruang sampel hingga peluang bersyarat</li><li>Sistem misi bercabang dengan stopwatch, hint, dan feedback langsung</li><li>Export hasil ke Excel/CSV otomatis</li></ul></div>
+      <div class="about-card" style="border-color:rgba(200,180,80,.05)"><p style="font-size:.6rem;color:rgba(200,180,80,.2);letter-spacing:.15em;text-align:center">DIBUAT DENGAN ❤️ UNTUK PEMBELAJARAN MATEMATIKA · BACKROOMS EDITION<br>© 2026 VANESSA ZAHWA CHAKIM · PENDIDIKAN MATEMATIKA · UNSIKA</p></div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// ════════════════════ ENTRANCE ════════════════════
+function enterBackrooms(){
+  const e=document.getElementById('entrance');
+  e.classList.add('fade-out');
+  setTimeout(()=>{
+    e.style.display='none';
+    document.getElementById('app').classList.add('visible');
+    initApp();
+  },1500);
+}
+function initApp(){renderDice(1);renderQuiz();}
+
+// ════════════════════ NAVIGATION ════════════════════
+let currentPage='home';
+function showPage(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active','room-enter'));
+  document.getElementById('page-'+id).classList.add('active');
+  currentPage=id;
+  document.querySelectorAll('.nav-btn').forEach((btn,i)=>{
+    const pages=['home','tujuan','materi','ar','soal','about'];
+    btn.classList.toggle('active',pages[i]===id);
+  });
+  if(id==='soal') renderQuiz();
+  if(id==='ar') renderDice(1);
+  if(window.innerWidth<768) document.getElementById('sidebar').classList.remove('open');
+}
+function roomTransition(id){
+  const rt=document.getElementById('room-transition');
+  rt.classList.add('active');
+  setTimeout(()=>{
+    rt.classList.remove('active');
+    showPage(id);
+    const page=document.getElementById('page-'+id);
+    page.classList.add('room-enter');
+    setTimeout(()=>page.classList.remove('room-enter'),700);
+  },800);
+}
+function toggleSidebar(){document.getElementById('sidebar').classList.toggle('open');}
+
+// ════════════════════════════════════════════════════
+//  AR MODE
+//  ✅ A-Frame 1.4.0 + AR.js 3.4.5 dari jsDelivr — KOMPATIBEL
+//  ✅ Tidak ada changeMatrixMode error
+//  ✅ Barcode marker type="barcode" value="0-3"
+//  ✅ detectionMode: mono_and_matrix + matrixCodeType: 3x3
+// ════════════════════════════════════════════════════
+let arModeActive = false;
+let arSceneInjected = false;
+
+function startARMode() {
+  const wrapper = document.getElementById('ar-scene-wrapper');
+  const hud = document.getElementById('ar-hud-overlay');
+  const main = document.getElementById('main');
+
+  wrapper.classList.add('ar-active');
+  hud.classList.add('ar-active');
+  main.classList.add('ar-hidden');
+  arModeActive = true;
+
+  if (!arSceneInjected) {
+    injectARScene();
+    arSceneInjected = true;
+  } else {
+    updateARStatus('📷 Arahkan kamera ke barcode marker untuk memunculkan objek AR');
+  }
+}
+
+function injectARScene() {
+  const wrapper = document.getElementById('ar-scene-wrapper');
+  const loadingMsg = document.getElementById('ar-loading-msg');
+
+  loadingMsg.classList.remove('hidden');
+  updateARStatus('📷 Meminta izin kamera...');
+
+  const sceneDiv = document.createElement('div');
+  sceneDiv.id = 'ar-scene-container';
+  sceneDiv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;';
+
+  sceneDiv.innerHTML = `
+    <a-scene
+      embedded
+      arjs="sourceType: webcam; videoTexture: true; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;"
+      vr-mode-ui="enabled: false"
+      renderer="logarithmicDepthBuffer: true; antialias: true; alpha: true;"
+      id="arScene"
+      style="width:100%;height:100%;"
+    >
+      <a-light type="ambient" color="#cce8ff" intensity="0.7"></a-light>
+      <a-light type="directional" color="#ffffff" intensity="1.2" position="1 3 2"></a-light>
+
+      <!-- BARCODE #0 → Bola Kuning (Frekuensi Relatif) -->
+      <a-marker type="barcode" value="0" id="marker-koin">
+        <a-sphere position="0 0.6 0" radius="0.5" color="#f39c12" opacity="0.95"
+          animation="property: position; from: 0 0.4 0; to: 0 1 0; dir: alternate; loop: true; dur: 1500; easing: easeInOutSine"
+          animation__rot="property: rotation; to: 0 360 0; loop: true; dur: 4000; easing: linear"></a-sphere>
+        <a-text value="KOIN" position="0 1.5 0" align="center" color="#ffd54f" font="https://cdn.aframe.io/fonts/Exo2Bold.fnt" width="3.5" look-at="[camera]"></a-text>
+        <a-text value="Frekuensi Relatif" position="0 1.25 0" align="center" color="#ffe082" width="3" look-at="[camera]"></a-text>
+        <a-text value="Fr(A) = f(A) / n" position="0 1.0 0" align="center" color="#fffde7" width="2.8" look-at="[camera]"></a-text>
+        <a-ring position="0 0.01 0" radius-inner="0.55" radius-outer="0.65" rotation="-90 0 0" color="#f39c12" opacity="0.5"
+          animation="property: rotation; from: -90 0 0; to: -90 360 0; loop: true; dur: 5000; easing: linear"></a-ring>
+      </a-marker>
+
+      <!-- BARCODE #1 → Kubus Merah (Kejadian Majemuk) -->
+      <a-marker type="barcode" value="1" id="marker-dadu">
+        <a-box position="0 0.5 0" scale="0.8 0.8 0.8" color="#c0392b" opacity="0.95"
+          animation="property: rotation; to: 360 360 0; loop: true; dur: 3500; easing: linear"></a-box>
+        <a-text value="DADU" position="0 1.5 0" align="center" color="#ef5350" font="https://cdn.aframe.io/fonts/Exo2Bold.fnt" width="3.5" look-at="[camera]"></a-text>
+        <a-text value="Kejadian Majemuk" position="0 1.25 0" align="center" color="#ef9a9a" width="3" look-at="[camera]"></a-text>
+        <a-text value="P(AuB) = P(A)+P(B)-P(AnB)" position="0 1.0 0" align="center" color="#fce4e4" width="2.8" look-at="[camera]"></a-text>
+        <a-ring position="0 0.01 0" radius-inner="0.55" radius-outer="0.65" rotation="-90 0 0" color="#c0392b" opacity="0.5"
+          animation="property: rotation; from: -90 0 0; to: -90 360 0; loop: true; dur: 4500; easing: linear"></a-ring>
+      </a-marker>
+
+      <!-- BARCODE #2 → Kerucut Biru (Ruang Sampel) -->
+      <a-marker type="barcode" value="2" id="marker-hujan">
+        <a-cone position="0 0.6 0" radius-bottom="0.5" radius-top="0" height="1.2" color="#2980b9" opacity="0.95"
+          animation="property: scale; from: 1 1 1; to: 1.12 1.12 1.12; dir: alternate; loop: true; dur: 1000; easing: easeInOutSine"
+          animation__rot="property: rotation; to: 0 360 0; loop: true; dur: 5000; easing: linear"></a-cone>
+        <a-sphere position="-0.35 1.6 0" radius="0.07" color="#7fc3e8" opacity="0.8"
+          animation="property: position; from: -0.35 1.6 0; to: -0.35 0.1 0; loop: true; dur: 900; easing: linear"></a-sphere>
+        <a-sphere position="0.2 1.8 0" radius="0.07" color="#7fc3e8" opacity="0.8"
+          animation="property: position; from: 0.2 1.8 0; to: 0.2 0.1 0; loop: true; dur: 700; easing: linear; delay: 300"></a-sphere>
+        <a-sphere position="0.5 1.5 0" radius="0.07" color="#7fc3e8" opacity="0.8"
+          animation="property: position; from: 0.5 1.5 0; to: 0.5 0.1 0; loop: true; dur: 1100; easing: linear; delay: 600"></a-sphere>
+        <a-text value="HUJAN" position="0 2.3 0" align="center" color="#4fc3f7" font="https://cdn.aframe.io/fonts/Exo2Bold.fnt" width="3.5" look-at="[camera]"></a-text>
+        <a-text value="Ruang Sampel" position="0 2.05 0" align="center" color="#81d4fa" width="3" look-at="[camera]"></a-text>
+        <a-text value="n(S) = n1 x n2 x ... x nk" position="0 1.8 0" align="center" color="#e1f5fe" width="2.8" look-at="[camera]"></a-text>
+        <a-ring position="0 0.01 0" radius-inner="0.55" radius-outer="0.65" rotation="-90 0 0" color="#2980b9" opacity="0.5"
+          animation="property: rotation; from: -90 0 0; to: -90 -360 0; loop: true; dur: 5500; easing: linear"></a-ring>
+      </a-marker>
+
+      <!-- BARCODE #3 → Silinder Hijau (Saling Bebas) -->
+      <a-marker type="barcode" value="3" id="marker-bola">
+        <a-cylinder position="0 0.6 0" radius="0.4" height="1.2" color="#27ae60" opacity="0.95"
+          animation="property: rotation; from: 0 0 0; to: 0 360 15; loop: true; dur: 4500; easing: linear"
+          animation__scale="property: scale; from: 1 1 1; to: 1.08 1.08 1.08; dir: alternate; loop: true; dur: 1200; easing: easeInOutSine"></a-cylinder>
+        <a-text value="BOLA" position="0 1.5 0" align="center" color="#81c784" font="https://cdn.aframe.io/fonts/Exo2Bold.fnt" width="3.5" look-at="[camera]"></a-text>
+        <a-text value="Kejadian Saling Bebas" position="0 1.25 0" align="center" color="#a5d6a7" width="3" look-at="[camera]"></a-text>
+        <a-text value="P(AnB) = P(A) x P(B)" position="0 1.0 0" align="center" color="#e8f5e9" width="2.8" look-at="[camera]"></a-text>
+        <a-ring position="0 0.01 0" radius-inner="0.55" radius-outer="0.65" rotation="-90 0 0" color="#27ae60" opacity="0.5"
+          animation="property: rotation; from: -90 0 0; to: -90 360 0; loop: true; dur: 4000; easing: linear"></a-ring>
+      </a-marker>
+
+      <a-entity camera></a-entity>
+    </a-scene>
+  `;
+
+  wrapper.appendChild(sceneDiv);
+
+  const scene = document.getElementById('arScene');
+  if (scene) {
+    const onReady = () => {
+      loadingMsg.classList.add('hidden');
+      updateARStatus('✅ AR siap! Arahkan kamera ke barcode marker untuk memunculkan objek 3D');
+      setupMarkerListeners();
+    };
+    if (scene.hasLoaded) {
+      onReady();
+    } else {
+      scene.addEventListener('loaded', onReady);
+      setTimeout(() => {
+        loadingMsg.classList.add('hidden');
+        updateARStatus('📷 Arahkan kamera ke barcode marker AR');
+        setupMarkerListeners();
+      }, 7000);
+    }
+  }
+}
+
+function setupMarkerListeners() {
+  const markerMap = {
+    'marker-koin':  '🪙 Barcode #0 terdeteksi! → Bola Kuning · Frekuensi Relatif',
+    'marker-dadu':  '🎲 Barcode #1 terdeteksi! → Kubus Merah · Kejadian Majemuk',
+    'marker-hujan': '☁️ Barcode #2 terdeteksi! → Kerucut Biru · Ruang Sampel',
+    'marker-bola':  '🔵 Barcode #3 terdeteksi! → Silinder Hijau · Saling Bebas',
+  };
+  Object.entries(markerMap).forEach(([id, label]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('markerFound', () => updateARStatus('✅ ' + label));
+    el.addEventListener('markerLost',  () => updateARStatus('📷 Arahkan kamera ke barcode marker untuk memunculkan objek AR'));
+  });
+}
+
+function stopARMode() {
+  arModeActive = false;
+  document.getElementById('ar-scene-wrapper').classList.remove('ar-active');
+  document.getElementById('ar-hud-overlay').classList.remove('ar-active');
+  document.getElementById('main').classList.remove('ar-hidden');
+}
+
+function updateARStatus(msg) {
+  const el = document.getElementById('arHudStatus');
+  if (el) el.textContent = msg;
+}
+
+// ════════════════════ DICE ════════════════════
+let diceStats=[0,0,0,0,0,0],diceTotal=0;
+const diceDots={
+  1:[[1,1]],2:[[0,2],[2,0]],3:[[0,2],[1,1],[2,0]],
+  4:[[0,0],[0,2],[2,0],[2,2]],5:[[0,0],[0,2],[1,1],[2,0],[2,2]],
+  6:[[0,0],[0,1],[0,2],[2,0],[2,1],[2,2]]
+};
+function renderDice(n){
+  const el=document.getElementById('diceEl');
+  if(!el) return;
+  el.style.gridTemplateColumns='repeat(3,1fr)';
+  el.style.gridTemplateRows='repeat(3,1fr)';
+  const cells=Array(9).fill('');
+  (diceDots[n]||[]).forEach(([r,c])=>cells[r*3+c]='dot');
+  el.innerHTML=cells.map(c=>c?`<div class="dot"></div>`:`<div></div>`).join('');
+}
+function rollDice(){
+  const val=Math.floor(Math.random()*6)+1;
+  diceStats[val-1]++;diceTotal++;
+  renderDice(val);
+  document.getElementById('diceResult').textContent='🎯 '+val;
+  document.getElementById('diceCount').textContent=diceTotal;
+  let html='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:2px">';
+  for(let i=0;i<6;i++){const pct=diceTotal?((diceStats[i]/diceTotal)*100).toFixed(1):0;html+=`<div style="font-size:.6rem">${i+1}▸${diceStats[i]}(${pct}%)</div>`;}
+  html+='</div>';
+  const ds=document.getElementById('diceStats');
+  if(ds) ds.innerHTML=html;
+}
+function autoRoll(){let c=0;const iv=setInterval(()=>{rollDice();c++;if(c>=10)clearInterval(iv);},180);}
+
+// ════════════════════ TWO COINS ════════════════════
+let coinResults={GG:0,GA:0,AG:0,AA:0};
+let coinTotal2=0;
+let coin1State=null,coin2State=null;
+function getCoinFace(isGambar){return isGambar?'👑':'500';}
+function flipSingleCoin(n){
+  const isG=Math.random()<.5;
+  const face=getCoinFace(isG);
+  const state=isG?'G':'A';
+  if(n===1){coin1State=state;setTimeout(()=>{document.getElementById('coinFace1').textContent=face;},300);}
+  else{coin2State=state;setTimeout(()=>{document.getElementById('coinFace2').textContent=face;},300);}
+  updateCoinResult();
+}
+function flipBothCoins(){
+  const r1=Math.random()<.5,r2=Math.random()<.5;
+  coin1State=r1?'G':'A';coin2State=r2?'G':'A';
+  const combo=(r1?'G':'A')+(r2?'G':'A');
+  coinResults[combo]++;coinTotal2++;
+  setTimeout(()=>{
+    document.getElementById('coinFace1').textContent=getCoinFace(r1);
+    document.getElementById('coinFace2').textContent=getCoinFace(r2);
+  },400);
+  updateCoinResult();updateCoinFreqStats();
+}
+function updateCoinResult(){
+  const cr=document.getElementById('coinResult');if(!cr) return;
+  const labels={G:'👑 Gambar',A:'500 Angka'};
+  let txt='';
+  if(coin1State&&coin2State) txt=`${labels[coin1State]} + ${labels[coin2State]}`;
+  else if(coin1State) txt=`Koin 1: ${labels[coin1State]}`;
+  else if(coin2State) txt=`Koin 2: ${labels[coin2State]}`;
+  cr.textContent=txt||'Klik koin atau flip keduanya!';
+}
+function updateCoinFreqStats(){
+  const tot=coinTotal2;
+  const cs=document.getElementById('coinStats');
+  if(cs) cs.innerHTML=`GG: ${coinResults.GG} | GA: ${coinResults.GA} | AG: ${coinResults.AG} | AA: ${coinResults.AA}<br>Total flip: ${tot}`;
+  const fs=document.getElementById('coinFreqStats');
+  if(!fs||tot===0) return;
+  let html='<div style="font-size:.6rem;line-height:2">';
+  for(const [k,v] of Object.entries(coinResults)){const pct=((v/tot)*100).toFixed(1);html+=`<div>${k}▸${v} (${pct}%) | Teoritik: 25%</div>`;}
+  html+='</div>';
+  fs.innerHTML=html;
+}
+function autoFlipBoth(){let c=0;const iv=setInterval(()=>{flipBothCoins();c++;if(c>=10)clearInterval(iv);},200);}
+
+// ════════════════════ QUIZ DATA ════════════════════
+const missions=[
+  {
+    id:'evakuasi',num:'MISI 01',title:'Menentukan Jalur Evakuasi',topic:'Frekuensi Relatif',icon:'🚪',
+    sceneClass:'scene-evakuasi',
+    sceneHTML:`<div class="evak-corridor"></div><div class="evak-light evak-light-1"></div><div class="evak-light evak-light-2"></div><div class="evak-floor"></div><div class="evak-door evak-door-a"></div><div class="evak-door evak-door-b"></div><div class="evak-sign">⬆ EXIT ROUTE ⬆</div><div class="evak-arrow">⚠️</div>`,
+    context:'Tim kamu berada dalam kondisi darurat dan harus segera melakukan evakuasi. Terdapat dua jalur yang bisa dipilih, yaitu Jalur A dan Jalur B. Setiap jalur memiliki tingkat bahaya berdasarkan data perjalanan sebelumnya.',
+    questions:[
+      {label:'Soal A',q:'Diketahui: Jalur A memiliki 12 kejadian bahaya dari 60 perjalanan. Tentukan frekuensi relatif kejadian bahaya pada Jalur A!',opts:['a. 0,1','b. 0,2','c. 0,3','d. 0,5'],ans:1,hint:'💡 Frekuensi Relatif = Jumlah kejadian bahaya ÷ Jumlah total perjalanan = 12 ÷ 60 = ?',explain:'✅ Benar! Fr(Jalur A) = 12/60 = 1/5 = 0,2. Frekuensi relatif kejadian bahaya Jalur A adalah 0,2.'},
+      {label:'Soal B',q:'Berdasarkan hasil perhitungan frekuensi relatif pada Jalur A (Fr = 0,2) dan Jalur B (Fr = 0,3), jalur mana yang lebih aman untuk dipilih?',opts:['a. Ikuti teman','b. Pilih Jalur A berdasarkan data','c. Pilih random','d. Tidak memilih'],ans:1,hint:'💡 Semakin KECIL frekuensi relatif kejadian bahaya, semakin AMAN jalurnya. Bandingkan Fr(A)=0,2 dengan Fr(B)=0,3.',explain:'✅ Benar! Jalur A lebih aman karena Fr(A)=0,2 < Fr(B)=0,3.'}
+    ]
+  },
+  {
+    id:'cuaca',num:'MISI 02',title:'Prediksi Cuaca Ekstrim',topic:'Kejadian Majemuk',icon:'⛈️',
+    sceneClass:'scene-cuaca',
+    sceneHTML:`<div class="storm-glow"></div><div class="rain" id="rainContainer"></div><div class="cloud cloud-1"></div><div class="cloud cloud-2"></div><div class="cloud cloud-3"></div><div class="lightning lightning-1"></div><div class="lightning lightning-2"></div><div class="cuaca-label">⚡ EXTREME WEATHER ALERT ⚡</div>`,
+    context:'Tim kamu harus menentukan strategi bertahan berdasarkan kemungkinan terjadinya badai dan hujan lebat secara bersamaan. Selama 100 hari pengamatan: terjadi badai selama 40 hari, terjadi hujan lebat selama 50 hari, dan terjadi badai dan hujan lebat bersamaan selama 20 hari.',
+    questions:[
+      {label:'Soal A',q:'Berapa peluang terjadinya badai DAN hujan lebat secara bersamaan?',opts:['a. 0,1','b. 0,2','c. 0,3','d. 0,5'],ans:1,hint:'💡 P(badai DAN hujan) = P(A ∩ B) = jumlah hari terjadi keduanya ÷ total hari = 20 ÷ 100 = ?',explain:'✅ Benar! P(A∩B) = 20/100 = 0,2.'},
+      {label:'Soal B',q:'Berapa peluang terjadinya badai ATAU hujan lebat? (P(badai)=0,4 · P(hujan)=0,5 · P(keduanya)=0,2)',opts:['a. 0,4','b. 0,5','c. 0,6','d. 0,7'],ans:3,hint:'💡 P(A∪B) = P(A) + P(B) − P(A∩B). Inklusi-Eksklusi: 0,4 + 0,5 − 0,2 = ?',explain:'✅ Benar! P(A∪B) = 0,4 + 0,5 − 0,2 = 0,7.'}
+    ]
+  },
+  {
+    id:'koin',num:'MISI 03',title:'Sistem Kode Koin Kuno',topic:'Kejadian Saling Bebas',icon:'🪙',
+    sceneClass:'scene-koin',
+    sceneHTML:`<div class="scene-koin-overlay"></div><div class="ancient-coin" style="animation-delay:0s"><span class="coin-rune">⚜️</span><div class="coin-sparkle" style="top:5px;left:10px;animation-delay:.3s"></div><div class="coin-sparkle" style="top:50px;right:8px;animation-delay:1s"></div></div><div class="ancient-coin" style="animation-delay:1s"><span class="coin-rune">🔱</span><div class="coin-sparkle" style="bottom:5px;left:12px;animation-delay:.7s"></div><div class="coin-sparkle" style="top:10px;right:5px;animation-delay:1.5s"></div></div><div class="koin-rune-text">✦ KOIN KUNO · SISTEM KODE ✦</div>`,
+    context:'Tim menemukan mekanisme pintu kuno yang hanya bisa terbuka jika dua koin dilempar dan menghasilkan kombinasi tertentu. Diketahui peluang muncul angka pada 1 koin adalah 0,5 lalu dua koin dilempar secara bersamaan.',
+    questions:[
+      {label:'Soal A',q:'Peluang muncul angka pada KEDUA koin adalah…',opts:['a. 0,25','b. 0,5','c. 0,75','d. 1'],ans:0,hint:'💡 Dua koin bersifat SALING BEBAS (independen). P(keduanya angka) = P(koin1 angka) × P(koin2 angka) = 0,5 × 0,5 = ?',explain:'✅ Benar! P(A∩B) = P(A) × P(B) = 0,5 × 0,5 = 0,25.'},
+      {label:'Soal B',q:'"Kalau koin pertama angka, koin kedua pasti angka juga." Pernyataan ini…',opts:['a. Benar','b. Salah'],ans:1,hint:'💡 Apakah hasil koin pertama mempengaruhi koin kedua? Ingat konsep KEJADIAN SALING BEBAS (independen).',explain:'✅ Benar! Pernyataan tersebut SALAH. Dua koin bersifat saling bebas.'}
+    ]
+  },
+  {
+    id:'kartu',num:'MISI 04',title:'Kode Warna Kartu',topic:'Kejadian Saling Lepas',icon:'🃏',
+    sceneClass:'scene-kartu',
+    sceneHTML:`<div class="color-card red" style="transform:rotate(-15deg) translateY(-10px)"></div><div class="color-card blue" style="transform:rotate(-5deg) translateY(5px)"></div><div class="color-card dark" style="transform:rotate(3deg)"></div><div class="color-card blue" style="transform:rotate(12deg) translateY(5px)"></div><div class="color-card red" style="transform:rotate(20deg) translateY(-5px)"></div><div class="kartu-table"></div>`,
+    context:'Sebuah tim mengambil satu kartu secara acak dari satu set kartu. Diketahui bahwa peluang terambilnya kartu merah adalah 0,4 dan peluang terambilnya kartu biru adalah 0,3.',
+    questions:[
+      {label:'Soal A',q:'Peluang mendapatkan kartu merah ATAU biru adalah…',opts:['a. 0,7','b. 0,12','c. 0,4','d. 0,3'],ans:0,hint:'💡 Satu kartu hanya bisa satu warna → saling lepas (mutually exclusive). P(A∪B) = P(A) + P(B) = 0,4 + 0,3 = ?',explain:'✅ Benar! P(merah∪biru) = 0,4 + 0,3 = 0,7.'},
+      {label:'Soal B',q:'"Kartu merah ATAU biru" dihitung dengan cara dijumlah karena…',opts:['a. Karena saling bebas','b. Karena saling lepas','c. Karena dikali','d. Tidak tahu'],ans:1,hint:'💡 Satu kartu hanya bisa satu warna — tidak mungkin merah sekaligus biru. A ∩ B = ∅.',explain:'✅ Benar! Dijumlah karena SALING LEPAS (mutually exclusive). A ∩ B = ∅.'}
+    ]
+  },
+  {
+    id:'obat',num:'MISI 05',title:'Distribusi Obat Tim Medis',topic:'Peluang Bersyarat',icon:'💊',
+    sceneClass:'scene-obat',
+    sceneHTML:`<div class="obat-glow"></div><div class="med-box"><div class="med-box-face med-box-front"><div class="med-cross"></div><div class="med-label" style="position:absolute;top:5px;left:50%;transform:translateX(-50%);font-family:var(--serif);font-size:.75rem;color:rgba(100,200,255,.8);">A</div></div><div class="med-pills"><div class="pill pill-red"></div><div class="pill pill-blue"></div><div class="pill pill-red"></div></div><div class="med-box-tag">6 🔴 + 4 🔵</div></div><div class="med-box"><div class="med-box-face med-box-front"><div class="med-cross"></div><div class="med-label" style="position:absolute;top:5px;left:50%;transform:translateX(-50%);font-family:var(--serif);font-size:.75rem;color:rgba(100,200,255,.8);">B</div></div><div class="med-pills"><div class="pill pill-blue"></div><div class="pill pill-blue"></div><div class="pill pill-red"></div></div><div class="med-box-tag">2 🔴 + 8 🔵</div></div>`,
+    context:'Tim medis membagi obat ke dalam dua kotak. Kotak A berisi 6 antibiotik dan 4 antiseptik, Kotak B berisi 2 antibiotik dan 8 antiseptik. (🔴 = Antibiotik · 🔵 = Antiseptik)',
+    questions:[
+      {label:'Soal A',q:'Peluang mendapatkan antibiotik dari Kotak B adalah…',opts:['a. 0,2','b. 0,4','c. 0,6','d. 0,8'],ans:0,hint:'💡 P(antibiotik | Kotak B) = jumlah antibiotik di Kotak B ÷ total obat di Kotak B = 2 ÷ (2+8) = 2 ÷ 10 = ?',explain:'✅ Benar! P(antibiotik dari B) = 2/10 = 0,2.'},
+      {label:'Soal C',q:'Untuk mendapatkan antibiotik dengan peluang terbesar, pilih kotak yang peluangnya…',opts:['a. Kotak B (P = 0,4)','b. Sama saja (P = 0,5)','c. Kotak A (P = 0,6)','d. Kotak B (P = 0,8)'],ans:2,hint:'💡 Hitung P(antibiotik Kotak A) = 6 ÷ 10 = ?, dan P(antibiotik Kotak B) = 2 ÷ 10 = ? Bandingkan mana yang lebih besar.',explain:'✅ Benar! P(antibiotik Kotak A) = 6/10 = 0,6 > P(antibiotik Kotak B) = 0,2. Pilih Kotak A!'}
+    ]
+  }
+];
+
+// ════════════════════ QUIZ STATE ════════════════════
+let quizPhase='identity';
+let quizIdentity={nama:'',kelas:'',sekolah:''};
+let activeMissionIdx=null;
+let activeQIdx=0;
+let quizAnswered=false;
+let hintShown=false;
+let swInterval=null,swStart=null,swElapsed=0;
+let missionState=missions.map(()=>({completed:false,qResults:[],score:0}));
+let totalHintsUsed=0;
+let sessionStartTime=null;
+
+function renderQuiz(){
+  const area=document.getElementById('quizArea');
+  if(!area) return;
+  if(quizPhase==='identity') renderIdentityForm();
+  else if(quizPhase==='missionSelect') renderMissionSelect();
+  else if(quizPhase==='mission') renderMissionView();
+  else if(quizPhase==='result') renderFinalResult();
+}
+
+function renderIdentityForm(){
+  const area=document.getElementById('quizArea');
+  area.innerHTML=`
+    <div class="identity-form">
+      <h3>📋 Identitas Penyintas</h3>
+      <p>Isi data dirimu sebelum memasuki Trial Chamber</p>
+      <div class="id-field"><label>Nama Lengkap</label><input type="text" id="inputNama" placeholder="Nama lengkap..."></div>
+      <div class="id-field"><label>Kelas</label><input type="text" id="inputKelas" placeholder="Contoh: XI IPA 2"></div>
+      <div class="id-field"><label>Sekolah</label><input type="text" id="inputSekolah" placeholder="Nama sekolah..."></div>
+      <button class="start-quiz-btn" onclick="startQuiz()">⚔️ MULAI MISI</button>
+    </div>
+  `;
+}
+
+function startQuiz(){
+  const nama=document.getElementById('inputNama').value.trim();
+  const kelas=document.getElementById('inputKelas').value.trim();
+  const sekolah=document.getElementById('inputSekolah').value.trim();
+  if(!nama||!kelas||!sekolah){alert('Lengkapi semua identitas terlebih dahulu!');return;}
+  quizIdentity={nama,kelas,sekolah};
+  missionState=missions.map(()=>({completed:false,qResults:[],score:0}));
+  totalHintsUsed=0;
+  sessionStartTime=Date.now();
+  quizPhase='missionSelect';
+  renderMissionSelect();
+}
+
+function renderMissionSelect(){
+  const area=document.getElementById('quizArea');
+  const allDone=missionState.every(m=>m.completed);
+  const totalScore=missionState.reduce((a,m)=>a+m.score,0);
+  const maxScore=missions.reduce((a,m)=>a+m.questions.length*10,0);
+  let header=`
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+      <div>
+        <div style="font-family:var(--mono);font-size:.6rem;color:var(--text-dim);letter-spacing:.15em;text-transform:uppercase;margin-bottom:4px;">Penyintas: <span style="color:var(--wall)">${quizIdentity.nama}</span> · ${quizIdentity.kelas}</div>
+        <div style="font-family:var(--serif);font-size:1rem;color:var(--wall);">Pilih Misi yang Ingin Diselesaikan</div>
+      </div>
+      <div style="font-family:var(--mono);font-size:.75rem;color:var(--text-dim);">Skor: <span style="color:var(--wall);font-size:1rem;font-weight:700">${totalScore}</span>/${maxScore}</div>
+    </div>
+  `;
+  let cards=missions.map((m,i)=>{
+    const ms=missionState[i];
+    const statusTxt=ms.completed?'✅ SELESAI':'⚔️ BELUM';
+    const scoreTxt=ms.completed?`${ms.score}/${m.questions.length*10} pts`:'';
+    return `
+      <div class="mission-card ${ms.completed?'completed':''}" onclick="enterMission(${i})">
+        <div class="mission-scene mission-3d-scene ${m.sceneClass}" id="mscene-${i}">${m.sceneHTML}</div>
+        <div class="mission-info">
+          <div class="mission-num">${m.num} · ${m.topic}</div>
+          <div class="mission-title">${m.icon} ${m.title}</div>
+          <div class="mission-desc">${m.questions.length} sub-soal · klik untuk memulai</div>
+        </div>
+        <div class="mission-status">${statusTxt}</div>
+        ${ms.completed?`<div class="mission-score-badge">${scoreTxt}</div>`:''}
+      </div>
+    `;
+  }).join('');
+  let footer='';
+  if(allDone){footer=`<div style="text-align:center;margin-top:20px;"><button class="start-quiz-btn" onclick="quizPhase='result';renderQuiz();" style="max-width:360px;margin:0 auto">🏁 Lihat Hasil Akhir</button></div>`;}
+  area.innerHTML=header+`<div class="mission-grid">${cards}</div>`+footer;
+  setTimeout(()=>addRaindrops(),50);
+}
+
+function addRaindrops(){
+  const rc=document.getElementById('rainContainer');
+  if(!rc) return;
+  for(let i=0;i<18;i++){
+    const d=document.createElement('div');
+    d.className='raindrop';
+    d.style.left=Math.random()*100+'%';
+    d.style.animationDuration=(0.4+Math.random()*0.6)+'s';
+    d.style.animationDelay=(Math.random()*1)+'s';
+    rc.appendChild(d);
+  }
+}
+
+function enterMission(idx){
+  activeMissionIdx=idx;activeQIdx=0;quizAnswered=false;hintShown=false;
+  if(!missionState[idx].completed){missionState[idx].qResults=[];missionState[idx].score=0;}
+  quizPhase='mission';renderMissionView();
+}
+
+function renderMissionView(){
+  const area=document.getElementById('quizArea');
+  if(!area) return;
+  clearInterval(swInterval);swElapsed=0;swStart=Date.now();
+  const m=missions[activeMissionIdx];
+  const ms=missionState[activeMissionIdx];
+  const q=m.questions[activeQIdx];
+  quizAnswered=ms.completed&&ms.qResults[activeQIdx]!==undefined;
+  hintShown=false;
+  let dots='';
+  for(let i=0;i<m.questions.length;i++){
+    let cls='';
+    if(ms.qResults[i]!==undefined){cls=ms.qResults[i].correct?'done':'wrong';}
+    else if(i===activeQIdx){cls='current';}
+    dots+=`<div class="q-dot ${cls}" onclick="jumpToSubQ(${i})" style="cursor:pointer" title="${m.questions[i].label}"></div>`;
+  }
+  let optsHtml='';
+  q.opts.forEach((opt,i)=>{
+    let cls='';
+    if(quizAnswered){
+      cls='locked';
+      if(i===q.ans) cls+=' correct';
+      else if(ms.qResults[activeQIdx]&&ms.qResults[activeQIdx].chosen===i) cls+=' wrong';
+    }
+    optsHtml+=`<button class="quiz-opt ${cls}" id="opt-${i}" onclick="checkAnswer(${i})">${opt}</button>`;
+  });
+  let feedbackHtml='';
+  if(quizAnswered&&ms.qResults[activeQIdx]){
+    const r=ms.qResults[activeQIdx];
+    feedbackHtml=`<div class="quiz-feedback ${r.correct?'correct-fb':'wrong-fb'}">${r.correct?q.explain:'❌ Salah. '+q.explain}</div>`;
+  }
+  const hasPrev=activeQIdx>0;
+  const hasNext=activeQIdx<m.questions.length-1;
+  const isLastQ=activeQIdx===m.questions.length-1;
+  let navHtml=`
+    <div class="quiz-actions">
+      <button class="quiz-btn hint-btn" id="hintBtn" onclick="showHint()" ${quizAnswered||hintShown?'disabled':''}>💡 Hint</button>
+      ${hasPrev?`<button class="quiz-btn" style="background:rgba(200,180,80,.1);border:1px solid rgba(200,180,80,.2);color:var(--text-dim)" onclick="jumpToSubQ(${activeQIdx-1})">← Sebelumnya</button>`:''}
+      ${quizAnswered&&hasNext?`<button class="quiz-btn next-btn" onclick="jumpToSubQ(${activeQIdx+1})">Soal Berikutnya →</button>`:''}
+      ${quizAnswered&&isLastQ?`<button class="quiz-btn finish-btn" onclick="finishMission()">✔ Selesai Misi</button>`:''}
+    </div>
+  `;
+  area.innerHTML=`
+    <div class="mission-header-bar">
+      <button class="back-to-missions" onclick="backToMissions()">← Kembali ke Daftar Misi</button>
+      <div style="font-family:var(--mono);font-size:.65rem;color:var(--text-dim);">${m.num} · ${m.topic}</div>
+    </div>
+    <div class="mission-3d-scene ${m.sceneClass}" style="height:160px;border-radius:4px;margin-bottom:16px;border:1px solid rgba(200,180,80,.12);">${m.sceneHTML}</div>
+    <div style="background:rgba(200,180,80,.04);border:1px solid rgba(200,180,80,.12);border-radius:3px;padding:12px 16px;margin-bottom:16px;font-size:.72rem;color:rgba(232,206,138,.7);line-height:1.65;">
+      <span style="font-family:var(--mono);font-size:.55rem;color:rgba(200,180,80,.4);letter-spacing:.2em;text-transform:uppercase;display:block;margin-bottom:6px;">📋 KONTEKS MISI</span>
+      ${m.context}
+    </div>
+    <div class="mission-panel">
+      <div class="mission-panel-header">
+        <h3>${m.icon} ${m.title}</h3>
+        <div class="mission-timer-box">
+          <div class="sw-label">WAKTU</div>
+          <div class="sw-display" id="swDisplay">00:00</div>
+        </div>
+      </div>
+      <div class="mission-progress">
+        <span class="mission-progress-label">Progres:</span>
+        ${dots}
+        <span style="font-family:var(--mono);font-size:.55rem;color:var(--text-dim);margin-left:8px;">${activeQIdx+1}/${m.questions.length}</span>
+      </div>
+      <div class="sub-question-area">
+        <div class="sub-q-label">${q.label}</div>
+        <div class="quiz-q">${q.q}</div>
+        <div class="quiz-opts" id="quizOpts">${optsHtml}</div>
+        ${feedbackHtml}
+        <div id="hintBox">${hintShown?`<div class="hint-box"><strong>HINT:</strong> ${q.hint}</div>`:''}</div>
+        ${navHtml}
+      </div>
+      <div class="mission-score-bar">
+        <span>Skor Misi:</span>
+        <span class="score-val">${ms.score}/${m.questions.length*10}</span>
+      </div>
+    </div>
+  `;
+  if(!quizAnswered){
+    swInterval=setInterval(()=>{
+      swElapsed=Math.floor((Date.now()-swStart)/1000);
+      const m2=String(Math.floor(swElapsed/60)).padStart(2,'0');
+      const s2=String(swElapsed%60).padStart(2,'0');
+      const el=document.getElementById('swDisplay');
+      if(el) el.textContent=`${m2}:${s2}`;
+    },500);
+  }
+  setTimeout(()=>addRaindrops(),50);
+}
+
+function jumpToSubQ(idx){activeQIdx=idx;quizAnswered=false;hintShown=false;renderMissionView();}
+
+function checkAnswer(idx){
+  if(quizAnswered) return;
+  quizAnswered=true;clearInterval(swInterval);
+  const elapsed=Math.round((Date.now()-swStart)/1000);
+  const m=missions[activeMissionIdx];
+  const ms=missionState[activeMissionIdx];
+  const q=m.questions[activeQIdx];
+  const correct=idx===q.ans;
+  if(correct) ms.score+=10;
+  ms.qResults[activeQIdx]={correct,time:elapsed,hintUsed:hintShown,chosen:idx};
+  document.querySelectorAll('.quiz-opt').forEach((o,i)=>{
+    o.classList.add('locked');
+    if(i===q.ans) o.classList.add('correct');
+    else if(i===idx&&!correct) o.classList.add('wrong');
+  });
+  const fb=document.createElement('div');
+  fb.className=`quiz-feedback ${correct?'correct-fb':'wrong-fb'}`;
+  fb.textContent=correct?q.explain:'❌ Salah. '+q.explain;
+  const feedbackEl=document.getElementById('hintBox');
+  if(feedbackEl) feedbackEl.before(fb);
+  const hb=document.getElementById('hintBtn');
+  if(hb) hb.disabled=true;
+  const isLastQ=activeQIdx===m.questions.length-1;
+  const hasNext=activeQIdx<m.questions.length-1;
+  const actionsEl=document.querySelector('.quiz-actions');
+  if(actionsEl){
+    if(hasNext){const nb=document.createElement('button');nb.className='quiz-btn next-btn';nb.textContent='Soal Berikutnya →';nb.onclick=()=>jumpToSubQ(activeQIdx+1);actionsEl.appendChild(nb);}
+    if(isLastQ){const fb2=document.createElement('button');fb2.className='quiz-btn finish-btn';fb2.textContent='✔ Selesai Misi';fb2.onclick=finishMission;actionsEl.appendChild(fb2);}
+  }
+  const dots=document.querySelectorAll('.q-dot');
+  if(dots[activeQIdx]) dots[activeQIdx].className=`q-dot ${correct?'done':'wrong'}`;
+  const scoreEl=document.querySelector('.score-val');
+  if(scoreEl) scoreEl.textContent=`${ms.score}/${m.questions.length*10}`;
+}
+
+function showHint(){
+  if(quizAnswered||hintShown) return;
+  hintShown=true;totalHintsUsed++;
+  const m=missions[activeMissionIdx];
+  const q=m.questions[activeQIdx];
+  const hb=document.getElementById('hintBox');
+  if(hb) hb.innerHTML=`<div class="hint-box"><strong>HINT:</strong> ${q.hint}</div>`;
+  const btn=document.getElementById('hintBtn');
+  if(btn) btn.disabled=true;
+}
+
+function finishMission(){
+  clearInterval(swInterval);
+  const ms=missionState[activeMissionIdx];
+  const m=missions[activeMissionIdx];
+  if(ms.qResults.length===m.questions.length) ms.completed=true;
+  quizPhase='missionSelect';activeMissionIdx=null;renderMissionSelect();
+}
+
+function backToMissions(){clearInterval(swInterval);quizPhase='missionSelect';renderMissionSelect();}
+
+function renderFinalResult(){
+  const area=document.getElementById('quizArea');
+  const totalScore=missionState.reduce((a,m)=>a+m.score,0);
+  const maxScore=missions.reduce((a,m)=>a+m.questions.length*10,0);
+  const totalQs=missions.reduce((a,m)=>a+m.questions.length,0);
+  const totalCorrect=missionState.reduce((a,ms)=>a+ms.qResults.filter(r=>r&&r.correct).length,0);
+  const pct=Math.round((totalScore/maxScore)*100);
+  const allTimes=missionState.flatMap(ms=>ms.qResults.filter(r=>r).map(r=>r.time));
+  const avgTime=allTimes.length?Math.round(allTimes.reduce((a,b)=>a+b,0)/allTimes.length):0;
+  let emoji=pct>=80?'🏆':pct>=60?'🔥':pct>=40?'😓':'💀';
+  let msg=pct>=80?'Luar biasa! Kamu berhasil ESCAPE dari Backrooms!':pct>=60?'Bagus! Hampir berhasil melarikan diri.':pct>=40?'Perlu lebih banyak latihan, penyintas.':'Kamu terjebak lebih dalam di Backrooms...';
+  const breakdownRows=missions.map((m,i)=>{
+    const ms=missionState[i];
+    const correct=ms.qResults.filter(r=>r&&r.correct).length;
+    return `<div class="breakdown-row"><span class="breakdown-name">${m.icon} ${m.num}: ${m.title}</span><span class="breakdown-score">${ms.score}/${m.questions.length*10} pts (${correct}/${m.questions.length} benar)</span></div>`;
+  }).join('');
+  area.innerHTML=`
+    <div class="quiz-result">
+      <span class="result-emoji">${emoji}</span>
+      <div class="result-title">${msg}</div>
+      <p class="result-sub">Penyintas: <strong style="color:var(--wall)">${quizIdentity.nama}</strong> · ${quizIdentity.kelas} · ${quizIdentity.sekolah}</p>
+      <p class="result-sub">Total Skor: <strong style="color:var(--wall);font-size:1.3rem">${totalScore} / ${maxScore}</strong> (${pct}%) &nbsp;|&nbsp; ${totalCorrect} benar dari ${totalQs} soal</p>
+      <div class="track-record">
+        <h4>📊 Track Record</h4>
+        <div class="track-grid">
+          <div class="track-stat"><div class="ts-val">${totalScore}</div><div class="ts-label">Total Skor</div></div>
+          <div class="track-stat"><div class="ts-val">${avgTime}s</div><div class="ts-label">Rata² Waktu/Soal</div></div>
+          <div class="track-stat"><div class="ts-val">${totalHintsUsed}</div><div class="ts-label">Hint Digunakan</div></div>
+        </div>
+        <div class="mission-breakdown" style="margin-top:12px;">${breakdownRows}</div>
+        <button class="export-btn" onclick="exportToCSV()">📥 Download Rekap Excel/CSV</button>
+      </div>
+      <div class="result-actions">
+        <button class="restart-btn-sm red" onclick="resetAll()">🔄 Ulangi Semua Misi</button>
+        <button class="restart-btn-sm gold" onclick="quizPhase='missionSelect';renderMissionSelect();">🗺️ Kembali ke Peta Misi</button>
+        <button class="restart-btn-sm gold" onclick="quizPhase='identity';renderIdentityForm();">👤 Ganti Identitas</button>
+      </div>
+    </div>
+  `;
+}
+
+function resetAll(){
+  missionState=missions.map(()=>({completed:false,qResults:[],score:0}));
+  totalHintsUsed=0;activeQIdx=0;activeMissionIdx=null;quizPhase='missionSelect';renderMissionSelect();
+}
+
+function exportToCSV(){
+  const rows=[['Nama','Kelas','Sekolah','Misi','Sub-Soal','Jawaban','Waktu (s)','Hint','Skor']];
+  missions.forEach((m,mi)=>{
+    const ms=missionState[mi];
+    m.questions.forEach((q,qi)=>{
+      const r=ms.qResults[qi]||{};
+      rows.push([quizIdentity.nama,quizIdentity.kelas,quizIdentity.sekolah,m.title,q.label,r.correct?'Benar':'Salah',r.time||0,r.hintUsed?'Ya':'Tidak',r.correct?10:0]);
+    });
+  });
+  const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=`survival_probability_${quizIdentity.nama.replace(/\s/g,'_')}.csv`;a.click();
+  URL.revokeObjectURL(url);
+  const btn=document.querySelector('.export-btn');
+  if(btn){const orig=btn.textContent;btn.textContent='✅ File berhasil diunduh!';btn.style.background='rgba(39,174,96,.5)';setTimeout(()=>{btn.textContent=orig;btn.style.background='';},3000);}
+}
+</script>
+</body>
+</html>
